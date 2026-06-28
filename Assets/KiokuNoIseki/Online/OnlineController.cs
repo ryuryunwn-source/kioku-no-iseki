@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using Unity.Services.Core;
@@ -32,6 +33,8 @@ namespace KiokuNoIseki.Online
         bool pendingTargetsEnemy;
         enum PMode { Normal, AttackTarget, SpellTarget, Inscribe }
         PMode pmode = PMode.Normal;
+        GameObject onlineDetail;   // スキル詳細パネル
+        bool showRules;            // ルール表示中
 
         static Dictionary<string, CardData> s_db;
         static CardData Def(string id)
@@ -87,6 +90,7 @@ namespace KiokuNoIseki.Online
         {
             if (canvas == null) BuildCanvas();
             canvas.gameObject.SetActive(true);
+            showRules = false;
             status = "ホストになって相手にコードを伝えるか、コードを入力して参加してください。";
             Redraw();
         }
@@ -298,16 +302,35 @@ namespace KiokuNoIseki.Online
             bool myTurn = v.myTurn && v.result == 0;
 
             // 相手情報（上）
-            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   手札 {v.foe.hand.Length}   記憶 {v.foe.memoryCount}",
+            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   記憶 {v.foe.memoryCount}",
                 -250, 320, 760, 30, 20, TextAnchor.MiddleLeft, Color.white);
-            MakeText(root, $"遺構デッキ 残り {v.deckCount}", 430, 320, 320, 30, 18, TextAnchor.MiddleRight, new Color(0.8f, 0.8f, 0.6f));
+
+            // 山札（裏面＋残数）
+            MakeBack(480, 292, 30, 44);
+            MakeText(root, $"山札 {v.deckCount}", 480, 256, 130, 24, 14, TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.6f));
+
+            // 相手の手札（伏せ札の列）
+            int fhand = v.foe.hand != null ? v.foe.hand.Length : 0;
+            float hs = -(fhand - 1) * 22f;
+            for (int i = 0; i < fhand; i++) MakeBack(hs + i * 22f, 285, 34, 36);
+
+            // ルールボタン（右上）
+            var rulesBtn = MakeButton("ルール", 545, 332, 110, 32, new Color(0.30f, 0.34f, 0.45f));
+            rulesBtn.onClick.AddListener(() => { showRules = true; RedrawPlay(); });
 
             DrawRow(v.foe.board, 175, isEnemy: true, myTurn);
             DrawRow(v.me.board, -25, isEnemy: false, myTurn);
 
-            // ログ（左）
+            // ログ（右）
             if (v.log != null && v.log.Length > 0)
-                MakeText(root, string.Join("\n", v.log), -430, 40, 380, 200, 13, TextAnchor.LowerLeft, new Color(0.85f, 0.85f, 0.85f));
+                MakeText(root, string.Join("\n", v.log), 430, 60, 360, 200, 13, TextAnchor.LowerRight, new Color(0.85f, 0.85f, 0.85f));
+
+            // 選択中の守護者はスキル詳細を出しておく
+            if (selectedIid != 0)
+            {
+                var sel = FindCard(v, selectedIid);
+                if (sel != null) ShowDetail(sel);
+            }
 
             // 自分情報（下）
             MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}   瓦礫 {v.me.rubble}",
@@ -323,6 +346,45 @@ namespace KiokuNoIseki.Online
                 var b = MakeButton("メニューへ戻る", 0, -40, 280, 50, new Color(0.45f, 0.4f, 0.5f));
                 b.onClick.AddListener(() => { Disconnect(); ShowMenu(); });
             }
+
+            if (showRules) DrawRulesOverlay();
+        }
+
+        // ルールブック（スクロール表示）。文面はオフラインと共有(GameUI.RulesText)。
+        void DrawRulesOverlay()
+        {
+            var dim = MakePanel(new Color(0.03f, 0.04f, 0.07f, 0.98f));
+            Stretch(dim.rectTransform);
+
+            MakeText(dim.transform, "ルールブック", 0, 332, 400, 36, 26, TextAnchor.MiddleCenter, Color.white);
+
+            // スクロールビュー
+            var svGo = new GameObject("RulesScroll");
+            svGo.transform.SetParent(dim.transform, false);
+            var svImg = svGo.AddComponent<Image>(); svImg.color = new Color(0, 0, 0, 0.30f);
+            var sv = svGo.AddComponent<ScrollRect>();
+            svGo.AddComponent<RectMask2D>();
+            var svRt = svImg.rectTransform;
+            svRt.anchorMin = svRt.anchorMax = svRt.pivot = new Vector2(0.5f, 0.5f);
+            svRt.sizeDelta = new Vector2(940, 560); svRt.anchoredPosition = new Vector2(0, -8);
+
+            var content = new GameObject("Content");
+            content.transform.SetParent(svGo.transform, false);
+            var t = content.AddComponent<Text>();
+            t.font = jpFont; t.fontSize = 16; t.color = new Color(0.93f, 0.93f, 0.93f);
+            t.text = GameUI.RulesText; t.alignment = TextAnchor.UpperLeft;
+            t.horizontalOverflow = HorizontalWrapMode.Wrap; t.verticalOverflow = VerticalWrapMode.Overflow;
+            t.lineSpacing = 1.2f;
+            var cRt = t.rectTransform;
+            cRt.anchorMin = new Vector2(0, 1); cRt.anchorMax = new Vector2(1, 1); cRt.pivot = new Vector2(0.5f, 1);
+            cRt.offsetMin = new Vector2(16, 0); cRt.offsetMax = new Vector2(-16, 0);
+            var fitter = content.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            sv.content = cRt; sv.horizontal = false; sv.vertical = true;
+            sv.movementType = ScrollRect.MovementType.Clamped; sv.scrollSensitivity = 30f;
+
+            var close = MakeButton("閉じる", 0, -332, 220, 48, new Color(0.5f, 0.32f, 0.32f));
+            close.onClick.AddListener(() => { showRules = false; RedrawPlay(); });
         }
 
         void DrawRow(CardView[] cards, float cy, bool isEnemy, bool myTurn)
@@ -452,42 +514,185 @@ namespace KiokuNoIseki.Online
         static bool NeedsManualTarget(EffectId e) => IsEnemyTargetSpell(e) || IsAllyTargetSpell(e);
 
         // カード1枚のボタン（裏向きは絵だけ）
+        static readonly Dictionary<string, Sprite> s_artCache = new Dictionary<string, Sprite>();
+        static Sprite s_frame; static bool s_frameLoaded;
+        static Sprite GetFrame()
+        {
+            if (!s_frameLoaded) { s_frame = Resources.Load<Sprite>("Frames/frame_base"); s_frameLoaded = true; }
+            return s_frame;
+        }
+        static Sprite GetArt(CardData def)
+        {
+            if (def == null) return null;
+            if (s_artCache.TryGetValue(def.id, out var c)) return c;
+            Sprite sp = null;
+            if (def.kind == CardKind.Guardian && def.id.Length > 1 && int.TryParse(def.id.Substring(1), out int gi))
+                sp = Resources.Load<Sprite>($"CardArt/guardian_{gi:000}");
+            if (sp == null) sp = Resources.Load<Sprite>($"CardArt/{def.id}");
+            s_artCache[def.id] = sp;
+            return sp;
+        }
+        static string ElemName(Element e) => e switch
+        {
+            Element.Honoo => "焔", Element.Mori => "森", Element.Nagare => "流",
+            Element.Hikari => "光", Element.Kage => "影", _ => ""
+        };
+
         Button MakeCardButton(CardView cv, float cx, float cy)
         {
             var def = cv.faceDown ? null : Def(cv.cardId);
-            Color frame = cv.faceDown ? new Color(0.2f, 0.2f, 0.28f)
-                        : def != null && def.kind == CardKind.Guardian ? ElemColor[def.element]
-                        : def != null && def.kind == CardKind.Recollection ? new Color(0.5f, 0.5f, 0.55f)
-                        : new Color(0.55f, 0.5f, 0.4f);
 
             var go = new GameObject("Card");
             go.transform.SetParent(root, false);
             var img = go.AddComponent<Image>();
-            img.color = frame;
             var btn = go.AddComponent<Button>();
             var rt = img.rectTransform;
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = new Vector2(cx, cy);
-            rt.sizeDelta = new Vector2(120, 150);
+            rt.sizeDelta = new Vector2(120, 168);
+
+            // 局所ヘルパ：範囲テキスト／一点テキスト（黒縁付き）
+            void PlaceRange(string s, Vector2 aMin, Vector2 aMax, int fs, Color col, bool shade)
+            {
+                var t = MakeText(go.transform, s, 0, 0, 10, 10, fs, TextAnchor.MiddleCenter, col);
+                var r = t.rectTransform; r.anchorMin = aMin; r.anchorMax = aMax;
+                r.offsetMin = Vector2.zero; r.offsetMax = Vector2.zero;
+                if (shade) { var o = t.gameObject.AddComponent<UnityEngine.UI.Outline>(); o.effectColor = new Color(0,0,0,0.9f); o.effectDistance = new Vector2(1.2f,-1.2f); }
+            }
+            void PlaceAt(string s, Vector2 a, int fs, Color col)
+            {
+                var t = MakeText(go.transform, s, 0, 0, 22, 22, fs, TextAnchor.MiddleCenter, col);
+                var r = t.rectTransform; r.anchorMin = r.anchorMax = a; r.pivot = new Vector2(0.5f,0.5f);
+                r.anchoredPosition = Vector2.zero; r.sizeDelta = new Vector2(22,22);
+                var o = t.gameObject.AddComponent<UnityEngine.UI.Outline>(); o.effectColor = new Color(0,0,0,0.9f); o.effectDistance = new Vector2(1.2f,-1.2f);
+            }
+
+            var frame = GetFrame();
 
             if (cv.faceDown || def == null)
             {
-                MakeText(go.transform, "？", 0, 0, 120, 150, 40, TextAnchor.MiddleCenter, new Color(0.6f, 0.6f, 0.7f));
+                if (frame != null) { img.sprite = frame; img.color = new Color(0.55f,0.55f,0.6f); }
+                else img.color = new Color(0.2f, 0.2f, 0.28f);
+                PlaceRange("？", new Vector2(0.16f,0.53f), new Vector2(0.83f,0.89f), 36, new Color(0.85f,0.85f,0.9f), false);
                 return btn;
             }
 
-            var name = MakeText(go.transform, def.trueName, 0, 20, 116, 40, 13, TextAnchor.MiddleCenter, Color.white);
-            name.rectTransform.anchoredPosition = new Vector2(0, 20);
-            string stat;
+            Color edge = def.kind == CardKind.Guardian ? ElemColor[def.element]
+                       : def.kind == CardKind.Recollection ? new Color(0.5f,0.5f,0.55f)
+                       : new Color(0.6f,0.52f,0.38f);
+            if (frame != null) { img.sprite = frame; img.color = Color.white; }
+            else img.color = edge;
+
+            // イラスト（窓）
+            var artGo = new GameObject("Art"); artGo.transform.SetParent(go.transform, false);
+            var ai = artGo.AddComponent<Image>(); ai.raycastTarget = false;
+            var sp = GetArt(def);
+            if (sp != null) { ai.sprite = sp; ai.color = Color.white; ai.preserveAspect = false; }
+            else ai.color = new Color(edge.r*0.4f, edge.g*0.4f, edge.b*0.4f);
+            var ar = ai.rectTransform; ar.anchorMin = new Vector2(0.16f,0.53f); ar.anchorMax = new Vector2(0.83f,0.89f);
+            ar.offsetMin = Vector2.zero; ar.offsetMax = Vector2.zero;
+
+            // 名前バナー
+            PlaceRange(def.trueName, new Vector2(0.31f,0.46f), new Vector2(0.71f,0.51f), 10, new Color(0.97f,0.92f,0.80f), true);
+            // 技/種別（下部パネル）
+            string sub = def.kind == CardKind.Guardian ? def.techniqueName : def.kind == CardKind.Recollection ? "想起術" : "礎石";
+            PlaceRange(sub, new Vector2(0.12f,0.05f), new Vector2(0.88f,0.17f), 10, new Color(0.95f,0.89f,0.75f), true);
+            // コスト
+            PlaceAt(def.cost.ToString(), new Vector2(0.148f,0.487f), 14, new Color(1f,0.86f,0.42f));
+
             if (def.kind == CardKind.Guardian)
             {
-                string eng = cv.engraving > 0 ? $" 刻{cv.engraving}" : "";
-                string sick = cv.sick ? " 酔" : "";
-                stat = $"コスト{def.cost}\n{cv.atk}/{cv.def}{eng}{sick}";
+                PlaceAt(ElemName(def.element), new Vector2(0.865f,0.477f), 11, new Color(1f,0.97f,0.88f));
+                PlaceAt(cv.atk.ToString(),  new Vector2(0.833f,0.266f), 14, new Color(1f,0.55f,0.42f)); // 攻（右）
+                PlaceAt(cv.def.ToString(),  new Vector2(0.283f,0.266f), 14, new Color(0.58f,0.82f,1f)); // 防（左）
+                string flags = (cv.engraving > 0 ? $"刻{cv.engraving} " : "") + (cv.sick ? "酔" : "");
+                if (flags.Length > 0)
+                    PlaceRange(flags, new Vector2(0.28f,0.36f), new Vector2(0.72f,0.44f), 9, new Color(0.96f,0.86f,0.52f), true);
             }
-            else stat = $"コスト{def.cost}\n{(def.kind == CardKind.Cornerstone ? "礎石" : "術")}";
-            var st = MakeText(go.transform, stat, 0, -45, 116, 50, 12, TextAnchor.LowerCenter, new Color(1, 1, 0.85f));
+
+            // ホバーでスキル詳細を表示
+            var trig = go.AddComponent<EventTrigger>();
+            var cvc = cv;
+            var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enter.callback.AddListener((_) => ShowDetail(cvc));
+            trig.triggers.Add(enter);
+            var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exit.callback.AddListener((_) =>
+            {
+                var lv = net != null ? net.LatestView : null;
+                if (selectedIid != 0 && lv != null) { var s = FindCard(lv, selectedIid); if (s != null) { ShowDetail(s); return; } }
+                HideDetail();
+            });
+            trig.triggers.Add(exit);
+
             return btn;
+        }
+
+        void MakeBack(float cx, float cy, float w, float h)
+        {
+            var go = new GameObject("Back");
+            go.transform.SetParent(root, false);
+            var img = go.AddComponent<Image>();
+            var frame = GetFrame();
+            if (frame != null) { img.sprite = frame; img.color = new Color(0.5f, 0.45f, 0.55f); }
+            else img.color = new Color(0.16f, 0.14f, 0.18f);
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(cx, cy); rt.sizeDelta = new Vector2(w, h);
+            var t = MakeText(go.transform, "記", 0, 0, w, h, Mathf.Max(10, Mathf.RoundToInt(h * 0.42f)), TextAnchor.MiddleCenter, new Color(0.80f, 0.68f, 0.42f));
+            var o = t.gameObject.AddComponent<UnityEngine.UI.Outline>(); o.effectColor = new Color(0, 0, 0, 0.85f); o.effectDistance = new Vector2(1, -1);
+        }
+
+        CardView FindCard(GameView v, int iid)
+        {
+            if (v == null || iid == 0) return null;
+            if (v.me != null && v.me.board != null) foreach (var c in v.me.board) if (c.iid == iid) return c;
+            if (v.me != null && v.me.hand != null) foreach (var c in v.me.hand) if (c.iid == iid) return c;
+            if (v.foe != null && v.foe.board != null) foreach (var c in v.foe.board) if (c.iid == iid) return c;
+            return null;
+        }
+
+        string BuildDesc(CardView cv)
+        {
+            var d = Def(cv.cardId);
+            if (d == null) return "";
+            switch (d.kind)
+            {
+                case CardKind.Guardian:
+                    string eng = cv.engraving > 0 ? $"  刻印{cv.engraving}" : "";
+                    return $"【守護者】{d.trueName}　系統:{ElemName(d.element)}\n" +
+                           $"コスト{d.cost}　攻撃{cv.atk} / 防御{cv.def}{eng}\n" +
+                           $"━ 技「{d.techniqueName}」（詠唱コスト{d.incantationCost}）━\n{d.effectText}";
+                case CardKind.Recollection:
+                    return $"【想起術】{d.trueName}　コスト{d.cost}\n{d.effectText}";
+                default:
+                    return $"【礎石】{d.trueName}　コスト{d.cost}（設置・永続）\n{d.effectText}";
+            }
+        }
+
+        void ShowDetail(CardView cv)
+        {
+            if (cv == null || cv.faceDown) return;
+            var d = Def(cv.cardId); if (d == null) return;
+            if (onlineDetail != null) Destroy(onlineDetail);
+            var p = MakePanel(new Color(0.05f, 0.05f, 0.09f, 0.96f));
+            onlineDetail = p.gameObject;
+            var rt = p.rectTransform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0, 175); rt.sizeDelta = new Vector2(680, 150);
+            Color edge = d.kind == CardKind.Guardian ? ElemColor[d.element] : new Color(0.6f, 0.6f, 0.65f);
+            Outline(p.gameObject, edge);
+            var t = MakeText(p.transform, BuildDesc(cv), 0, 0, 660, 140, 17, TextAnchor.UpperLeft, new Color(0.95f, 0.95f, 0.95f));
+            t.lineSpacing = 1.25f;
+            t.rectTransform.anchorMin = Vector2.zero; t.rectTransform.anchorMax = Vector2.one;
+            t.rectTransform.offsetMin = new Vector2(12, 12); t.rectTransform.offsetMax = new Vector2(-12, -12);
+            p.transform.SetAsLastSibling();
+        }
+
+        void HideDetail()
+        {
+            if (onlineDetail != null) Destroy(onlineDetail);
+            onlineDetail = null;
         }
 
         void Outline(GameObject go, Color c)

@@ -49,7 +49,8 @@ namespace KiokuNoIseki
             && engine.currentPlayer == Vp && !engine.players[Vp].isAI;
 
         // ゲーム内ルールブック（v1の要点）。ルールブック .md の抜粋・要約。
-        const string RulesText =
+        // オンライン側(別アセンブリ)からも参照するため public。
+        public const string RulesText =
 @"『記憶の遺跡』 ルール（v1）
 
 ■ 目的（勝利条件）

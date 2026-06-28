@@ -23,10 +23,12 @@ build.log
 
 # Visual Studio / Rider / IDE
 .vs/
+.vscode/
 .vsconfig
 .idea/
 *.csproj
 *.sln
+*.slnx
 *.suo
 *.user
 *.userprefs
