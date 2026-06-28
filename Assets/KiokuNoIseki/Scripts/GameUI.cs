@@ -1,0 +1,1080 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+
+namespace KiokuNoIseki
+{
+    // 14章のUI方針に従い「枠（固定テンプレート）＋イラスト窓（v1はプレースホルダー単色）」で
+    // カードを描画する。シーン編集不要：Play押下で自動生成される。
+    public class GameUI : MonoBehaviour
+    {
+        GameEngine engine;
+        Font jpFont;
+
+        // 系統ごとの枠の縁色（14-3：5バリエーション）
+        static readonly Dictionary<Element, Color> ElementColor = new Dictionary<Element, Color>
+        {
+            { Element.Honoo, new Color(0.85f,0.30f,0.20f) },
+            { Element.Mori,  new Color(0.30f,0.65f,0.30f) },
+            { Element.Nagare,new Color(0.25f,0.55f,0.85f) },
+            { Element.Hikari,new Color(0.90f,0.80f,0.35f) },
+            { Element.Kage,  new Color(0.45f,0.35f,0.60f) },
+        };
+
+        // UI状態
+        enum Mode { Normal, Inscribe, SelectAttackTarget, SelectSpellTarget }
+        Mode mode = Mode.Normal;
+        CardInstance selectedAttacker;
+        CardInstance pendingSpell;          // 対象選択待ちの想起術
+        bool pendingSpellTargetsEnemy;      // true=相手の守護者を選ぶ / false=自分の守護者
+        bool showRules;
+        GameObject cardDetail; // ホバー/選択中カードのスキル詳細パネル
+
+        // オンライン拡張（別アセンブリ）への接続点。拡張が読み込まれると設定される。
+        // null の場合はオンライン機能が未ロード（コンパイル失敗時など）。
+        public static System.Action LaunchOnline;
+
+        // 画面・モード状態
+        bool inTitle = true;     // タイトル画面表示中
+        bool isLocalPvP;         // ローカル対人戦か（false=AI戦）
+        bool lastWasAI = true;   // リマッチ用に直前のモードを記憶
+        bool awaitingPass;       // 交代プレイの目隠し画面表示中
+
+        // 表示視点プレイヤー：AI戦は常に人間(0)、対人戦は現在の手番
+        int Vp => isLocalPvP ? engine.currentPlayer : 0;
+        // 現在、視点プレイヤーが人間として操作できる手番か
+        bool MyActiveTurn => engine != null && !inTitle && !awaitingPass
+            && engine.result == GameResult.Ongoing
+            && engine.currentPlayer == Vp && !engine.players[Vp].isAI;
+
+        // ゲーム内ルールブック（v1の要点）。ルールブック .md の抜粋・要約。
+        const string RulesText =
+@"『記憶の遺跡』 ルール（v1）
+
+■ 目的（勝利条件）
+・相手のHPを0にする（通常勝利）
+・完全刻印(刻印3)の守護者を記憶領域に3体集める（古き盟約勝利）
+・遺構デッキが尽きたとき、記憶領域の枚数が多い方が勝利（枯渇勝利）
+
+■ 基本
+・デッキは中央の『遺構デッキ』48枚を2人で共有して掘り合う。
+・HPは20、想起ゲージ（マナ）は初期2/2。手札は最大7枚。
+・場：守護者5スロット／礎石3スロット。
+
+■ ターンの流れ（5フェイズ）
+1. 想起減衰：ゲージが自動で-1（前ターンに刻んだ場合はスキップ）。
+2. 発掘：遺構デッキから1枚引く。
+3. 刻む（任意）：手札1枚を捧げてゲージ上限+1＆全回復。1ターン1回。
+   刻むと次の減衰はスキップされる。
+4. 行動：カードのプレイ・攻撃・技の発動を自由な順で。
+5. 終了：手札に長く残ったカードに風化が溜まる。
+
+■ カードの種類
+・守護者：コスト/攻撃/防御を持つユニット。出した直後は召喚酔いで攻撃不可
+  （技はタップで使用可）。各守護者は固有の『技』を持つ。
+・想起術：使い切りの呪文。使用後は遺構デッキの一番下へ。
+・礎石：場に残る永続効果カード。
+
+■ 技の発動（タップ）
+・自分の行動フェイズに、自分の守護者をタップ→『技』ボタンで発動。
+・詠唱コストをゲージから支払う。1体につき1ターン1回まで。
+
+■ 風化
+・3ターン以上手札に残るとカウンターが増え、3で消滅して瓦礫1個になる
+  （消滅したカードはゲームから完全に除外）。
+
+■ 転生（共有デッキの肝）
+・破壊された守護者は墓地ではなく遺構デッキにシャッフルで戻る。
+・戻る際に『刻印』が1つ増え、刻印1つにつき攻撃力/防御力+1。
+・真名・技はカード固有なので、相手が掘り当てれば相手がその技を使える。
+・刻印3の守護者がさらに破壊されると、破壊した側の記憶領域へ送られる。
+
+■ 操作方法
+・手札カードをクリック：プレイ（対象は自動選択）。
+・自分の守護者をクリック：選択→『技』『攻撃』。
+・攻撃：相手守護者をクリックで対象指定、または本体を直接攻撃。
+・『刻む』→捧げる手札をクリック。
+・『ターン終了』でAIの番へ。";
+
+        Transform root;
+        Text logText;
+        readonly List<string> logLines = new List<string>();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Bootstrap()
+        {
+            if (FindAnyObjectByType<GameUI>() != null) return;
+            var go = new GameObject("KiokuNoIseki_Game");
+            DontDestroyOnLoad(go);
+            go.AddComponent<GameUI>();
+        }
+
+        void Start()
+        {
+            jpFont = LoadJpFont();
+            EnsureEventSystem();
+            BuildCanvas();
+            Redraw(); // タイトル画面から開始
+        }
+
+        Font LoadJpFont()
+        {
+            string[] candidates = { "Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic", "MS UI Gothic" };
+            foreach (var name in candidates)
+            {
+                var f = Font.CreateDynamicFontFromOSFont(name, 16);
+                if (f != null) return f;
+            }
+            return Font.CreateDynamicFontFromOSFont(Font.GetOSInstalledFontNames().Length > 0
+                ? Font.GetOSInstalledFontNames()[0] : "Arial", 16);
+        }
+
+        void EnsureEventSystem()
+        {
+            if (FindAnyObjectByType<EventSystem>() != null) return;
+            var es = new GameObject("EventSystem");
+            es.AddComponent<EventSystem>();
+#if ENABLE_INPUT_SYSTEM
+            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#else
+            es.AddComponent<StandaloneInputModule>();
+#endif
+        }
+
+        Canvas canvas;
+        void BuildCanvas()
+        {
+            var cgo = new GameObject("Canvas");
+            canvas = cgo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = cgo.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1280, 720);
+            scaler.matchWidthOrHeight = 0.5f;
+            scaler.dynamicPixelsPerUnit = 4f; // 動的フォントを高解像度でラスタライズ＝文字くっきり
+            cgo.AddComponent<GraphicRaycaster>();
+            root = cgo.transform;
+
+            // 背景
+            var bg = MakePanel(root, new Color(0.10f, 0.10f, 0.13f), "BG");
+            Stretch(bg.rectTransform);
+        }
+
+        // ───────── 再描画（イミディエイト方式：毎回作り直す） ─────────
+        void Redraw()
+        {
+            // 既存の動的UIを消す（BG以外）
+            for (int i = root.childCount - 1; i >= 0; i--)
+            {
+                var ch = root.GetChild(i);
+                if (ch.name == "BG") continue;
+                Destroy(ch.gameObject);
+            }
+            cardDetail = null; // 上のDestroyで詳細パネルも消えるため参照をクリア
+
+            // タイトル画面
+            if (inTitle || engine == null)
+            {
+                DrawTitle();
+                if (showRules) DrawRulesOverlay();
+                return;
+            }
+
+            // 交代プレイの目隠し画面（手札を隠して引き継ぐ）
+            if (awaitingPass)
+            {
+                DrawPassScreen();
+                if (showRules) DrawRulesOverlay();
+                return;
+            }
+
+            int vp = Vp;
+            var me = engine.players[vp];
+            var foe = engine.players[1 - vp];
+            bool ongoing = engine.result == GameResult.Ongoing;
+
+            // 上部：相手情報＋盤面
+            MakeLabel(root, $"{foe.name}   HP {foe.hp}   ゲージ {foe.recallGauge}/{foe.recallGaugeMax}   記憶領域 {foe.memoryZone.Count}",
+                new Vector2(20, -16), new Vector2(700, 28), 20, TextAnchor.MiddleLeft, Color.white);
+            // 山札（裏面スタック＋残数）
+            MakeCardBack(root, new Vector2(-150, -44), new Vector2(44, 63), fromTop:true, anchorRight:true);
+            MakeLabel(root, $"遺構デッキ\n残り {engine.deck.Count} 枚",
+                new Vector2(-20, -52), new Vector2(120, 44), 16, TextAnchor.MiddleRight, new Color(0.8f,0.8f,0.6f), anchorRight:true);
+
+            // 相手の手札（伏せカードの扇）
+            int foeHand = foe.hand.Count;
+            if (foeHand > 0)
+            {
+                float bw = 28f, step = 20f;
+                float total = (foeHand - 1) * step + bw;
+                float startX = 640f - total / 2f;
+                for (int i = 0; i < foeHand; i++)
+                    MakeCardBack(root, new Vector2(startX + i * step, -5), new Vector2(bw, 40), fromTop:true);
+            }
+
+            // ルール表示ボタン（常時表示・右上）
+            var rulesBtn = MakeButton(root, "ルール", new Vector2(-20, -14), new Vector2(110, 32),
+                new Color(0.30f,0.34f,0.45f), fromTop:true, anchorRight:true);
+            rulesBtn.onClick.AddListener(() => { showRules = true; Redraw(); });
+
+            // ログ（カードより先に描く＝後ろに回す）
+            DrawLogPanel();
+
+            DrawBoardRow(foe.board, y: -46, owner: foe, isOpponent: true);
+            DrawBoardRow(me.board, y: -238, owner: me, isOpponent: false);
+
+            // 下部：手番プレイヤー情報
+            MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   記憶領域 {me.memoryZone.Count}   瓦礫 {me.rubbleTokens}",
+                new Vector2(20, 290), new Vector2(800, 28), 20, TextAnchor.MiddleLeft, Color.white, fromBottom:true);
+
+            // 手札
+            DrawHand(me, interactable: MyActiveTurn);
+
+            // 操作ボタン群
+            DrawControls(MyActiveTurn);
+
+            // 勝敗
+            if (!ongoing) DrawGameOver();
+
+            // 選択中の守護者があればスキル詳細を出しておく
+            if (selectedAttacker != null && me.board.Contains(selectedAttacker))
+                ShowCardDetail(selectedAttacker);
+
+            // ルール画面（最後に描画＝最前面に重なる）
+            if (showRules) DrawRulesOverlay();
+        }
+
+        static string ElementName(Element e)
+        {
+            switch (e)
+            {
+                case Element.Honoo: return "焔";
+                case Element.Mori: return "森";
+                case Element.Nagare: return "流";
+                case Element.Hikari: return "光";
+                default: return "影";
+            }
+        }
+
+        string BuildCardDesc(CardInstance c)
+        {
+            var d = c.definition;
+            switch (d.kind)
+            {
+                case CardKind.Guardian:
+                    string eng = c.engravingCount > 0 ? $"  刻印{c.engravingCount}" : "";
+                    return $"【守護者】{d.trueName}　系統:{ElementName(d.element)}\n" +
+                           $"コスト{d.cost}　攻撃{c.CurrentAttack} / 防御{c.RemainingDefense}{eng}\n" +
+                           $"━ 技「{d.techniqueName}」（詠唱コスト{d.incantationCost}）━\n" +
+                           $"{d.effectText}";
+                case CardKind.Recollection:
+                    return $"【想起術】{d.trueName}　コスト{d.cost}\n{d.effectText}";
+                default:
+                    return $"【礎石】{d.trueName}　コスト{d.cost}（設置・永続）\n{d.effectText}";
+            }
+        }
+
+        // カードのスキル詳細パネル（ホバー/選択時）。手札の上あたりに表示する。
+        void ShowCardDetail(CardInstance c)
+        {
+            if (cardDetail != null) Destroy(cardDetail);
+            var panel = MakePanel(root, new Color(0.05f, 0.05f, 0.09f, 0.96f), "DetailPanel");
+            cardDetail = panel.gameObject;
+            var rt = panel.rectTransform;
+            rt.anchorMin = new Vector2(0.5f, 0); rt.anchorMax = new Vector2(0.5f, 0);
+            rt.pivot = new Vector2(0.5f, 0);
+            rt.anchoredPosition = new Vector2(0, 200);
+            rt.sizeDelta = new Vector2(680, 150);
+
+            Color edge = c.definition.kind == CardKind.Guardian ? ElementColor[c.definition.element]
+                       : new Color(0.6f, 0.6f, 0.65f);
+            Outline(panel.gameObject, edge);
+
+            var t = MakeChildText(panel.transform, BuildCardDesc(c), 17, TextAnchor.UpperLeft, new Color(0.95f, 0.95f, 0.95f));
+            t.lineSpacing = 1.25f;
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            Stretch(t.rectTransform, 14);
+
+            panel.transform.SetAsLastSibling(); // 最前面へ
+        }
+
+        void HideCardDetail()
+        {
+            if (cardDetail != null) Destroy(cardDetail);
+            cardDetail = null;
+        }
+
+        // スクロール可能なルール表示オーバーレイ
+        void DrawRulesOverlay()
+        {
+            // 全画面の暗幕
+            var dim = MakePanel(root, new Color(0f, 0f, 0f, 0.85f), "RulesOverlay");
+            Stretch(dim.rectTransform);
+
+            // タイトル
+            MakeLabel(dim.transform, "ルールブック", new Vector2(0, -16), new Vector2(400, 36), 26,
+                TextAnchor.UpperCenter, Color.white);
+
+            // 閉じるボタン
+            var close = MakeButton(dim.transform, "✕ 閉じる", new Vector2(-24, -14), new Vector2(120, 40),
+                new Color(0.5f,0.3f,0.3f), fromTop:true, anchorRight:true);
+            close.onClick.AddListener(() => { showRules = false; Redraw(); });
+
+            // スクロールビュー領域
+            var scrollGo = new GameObject("Scroll");
+            scrollGo.transform.SetParent(dim.transform, false);
+            var scrollImg = scrollGo.AddComponent<Image>();
+            scrollImg.color = new Color(0.12f, 0.12f, 0.16f, 0.95f);
+            var scroll = scrollGo.AddComponent<ScrollRect>();
+            var srt = scrollImg.rectTransform;
+            srt.anchorMin = new Vector2(0, 0); srt.anchorMax = new Vector2(1, 1);
+            srt.pivot = new Vector2(0.5f, 0.5f);
+            // 上60px(タイトル/閉じる)・下20px・左右40pxの余白を空けて全画面に広げる
+            srt.offsetMin = new Vector2(40, 20);
+            srt.offsetMax = new Vector2(-40, -60);
+
+            // viewport（クリップ用）
+            var vpGo = new GameObject("Viewport");
+            vpGo.transform.SetParent(scrollGo.transform, false);
+            var vpImg = vpGo.AddComponent<Image>();
+            vpImg.color = new Color(1, 1, 1, 0.01f);
+            vpGo.AddComponent<RectMask2D>();
+            Stretch(vpImg.rectTransform, 6);
+
+            // content（テキスト）。高さは行数から明示計算（ContentSizeFitterのリビルド遅延を回避）
+            int fontSize = 18;
+            int lineCount = RulesText.Split('\n').Length;
+            float contentHeight = (lineCount + 2) * (fontSize + 8); // 行高の概算＋余白
+
+            var contentGo = new GameObject("Content");
+            contentGo.transform.SetParent(vpGo.transform, false);
+            var contentRt = contentGo.AddComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0, 1); contentRt.anchorMax = new Vector2(1, 1);
+            contentRt.pivot = new Vector2(0.5f, 1);
+            contentRt.offsetMin = new Vector2(0, 0); contentRt.offsetMax = new Vector2(0, 0);
+            contentRt.sizeDelta = new Vector2(0, contentHeight);
+            contentRt.anchoredPosition = Vector2.zero;
+
+            // テキストは content の子として左右パディングを取って配置
+            var txtGo = new GameObject("Text");
+            txtGo.transform.SetParent(contentGo.transform, false);
+            var txt = txtGo.AddComponent<Text>();
+            txt.text = RulesText;
+            txt.font = jpFont; txt.fontSize = fontSize; txt.color = new Color(0.92f, 0.92f, 0.92f);
+            txt.alignment = TextAnchor.UpperLeft;
+            txt.lineSpacing = 1.2f;
+            txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+            txt.verticalOverflow = VerticalWrapMode.Overflow;
+            var trt = txt.rectTransform;
+            trt.anchorMin = new Vector2(0, 0); trt.anchorMax = new Vector2(1, 1);
+            trt.offsetMin = new Vector2(24, 8); trt.offsetMax = new Vector2(-24, -8);
+
+            scroll.content = contentRt;
+            scroll.viewport = vpImg.rectTransform;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.scrollSensitivity = 24;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+        }
+
+        void DrawBoardRow(List<CardInstance> board, float y, RecallerState owner, bool isOpponent)
+        {
+            float x = 18;
+            foreach (var c in board)
+            {
+                var card = c;
+                var btn = MakeCard(root, card, new Vector2(x, y), fromTop:true);
+                bool yourTurn = MyActiveTurn;
+
+                if (mode == Mode.SelectSpellTarget && pendingSpell != null && pendingSpellTargetsEnemy == isOpponent)
+                {
+                    // 想起術の対象として選べる
+                    btn.onClick.AddListener(() => {
+                        engine.PlayCard(pendingSpell, card);
+                        pendingSpell = null; mode = Mode.Normal; AfterHumanAction();
+                    });
+                    Outline(btn.gameObject, Color.yellow);
+                }
+                else if (mode == Mode.SelectAttackTarget && isOpponent)
+                {
+                    // 攻撃対象として選べる
+                    btn.onClick.AddListener(() => {
+                        engine.Attack(selectedAttacker, card);
+                        mode = Mode.Normal; selectedAttacker = null; AfterHumanAction();
+                    });
+                    Outline(btn.gameObject, Color.red);
+                }
+                else if (mode == Mode.Normal && !isOpponent && yourTurn)
+                {
+                    // 自分の守護者：選択して技/攻撃
+                    btn.onClick.AddListener(() => OnSelectOwnGuardian(card));
+                    if (selectedAttacker == card) Outline(btn.gameObject, Color.cyan);
+                }
+                x += 140;
+            }
+        }
+
+        void OnSelectOwnGuardian(CardInstance card)
+        {
+            selectedAttacker = card;
+            mode = Mode.Normal;
+            Redraw();
+        }
+
+        // 想起術で手動対象が必要なら対象選択モードへ。それ以外は即プレイ。
+        void OnPlayHandCard(CardInstance card)
+        {
+            var me = engine.players[Vp];
+            var foe = engine.players[1 - Vp];
+            if (card.definition.kind == CardKind.Recollection &&
+                NeedsManualTarget(card.definition.spellEffect, me, foe))
+            {
+                pendingSpell = card;
+                pendingSpellTargetsEnemy = IsEnemyTargetSpell(card.definition.spellEffect);
+                selectedAttacker = null;
+                mode = Mode.SelectSpellTarget;
+                Redraw();
+            }
+            else { engine.PlayCard(card); AfterHumanAction(); }
+        }
+
+        static bool IsEnemyTargetSpell(EffectId e) =>
+            e == EffectId.DamageEnemyGuardian || e == EffectId.DestroyEnemyGuardian;
+        static bool IsAllyTargetSpell(EffectId e) =>
+            e == EffectId.EngraveAlly || e == EffectId.RemoveSicknessAlly;
+        bool NeedsManualTarget(EffectId e, RecallerState me, RecallerState foe)
+        {
+            if (IsEnemyTargetSpell(e)) return foe.board.Count > 0;
+            if (IsAllyTargetSpell(e)) return me.board.Count > 0;
+            return false;
+        }
+
+        void DrawHand(RecallerState you, bool interactable)
+        {
+            float x = 18;
+            foreach (var c in you.hand)
+            {
+                var card = c;
+                var btn = MakeCard(root, card, new Vector2(x, 14), fromBottom:true);
+                if (interactable)
+                {
+                    if (mode == Mode.Inscribe)
+                    {
+                        btn.onClick.AddListener(() => { engine.Inscribe(card); mode = Mode.Normal; AfterHumanAction(); });
+                        Outline(btn.gameObject, Color.green);
+                    }
+                    else
+                    {
+                        bool affordable = you.recallGauge >= card.definition.cost;
+                        if (affordable)
+                            btn.onClick.AddListener(() => OnPlayHandCard(card));
+                        else
+                            btn.interactable = false;
+                    }
+                }
+                x += 140;
+            }
+        }
+
+        void DrawControls(bool yourTurn)
+        {
+            if (engine.result != GameResult.Ongoing) return;
+            if (!yourTurn)
+            {
+                MakeLabel(root, "AIの番…", new Vector2(-30, 30), new Vector2(200, 36), 20,
+                    TextAnchor.MiddleRight, Color.gray, fromBottom:true, anchorRight:true);
+                return;
+            }
+
+            var me = engine.players[Vp];
+            var foe = engine.players[1 - Vp];
+            float bx = -30;
+
+            // ターン終了
+            var endBtn = MakeButton(root, "ターン終了", new Vector2(bx, 30), new Vector2(140, 44),
+                new Color(0.5f,0.3f,0.3f), fromBottom:true, anchorRight:true);
+            endBtn.onClick.AddListener(() => { mode = Mode.Normal; selectedAttacker = null; engine.EndTurn(); AdvanceTurn(); });
+            bx -= 150;
+
+            // 刻む
+            if (!me.inscribedThisTurn && me.hand.Count > 0)
+            {
+                var insBtn = MakeButton(root, mode == Mode.Inscribe ? "刻む:手札選択" : "刻む",
+                    new Vector2(bx, 30), new Vector2(140, 44), new Color(0.35f,0.5f,0.35f), fromBottom:true, anchorRight:true);
+                insBtn.onClick.AddListener(() => { mode = mode == Mode.Inscribe ? Mode.Normal : Mode.Inscribe; selectedAttacker = null; Redraw(); });
+                bx -= 150;
+            }
+
+            // 選択中の守護者の行動
+            if (selectedAttacker != null)
+            {
+                var g = selectedAttacker;
+                // 技発動
+                if (!g.techniqueUsedThisTurn)
+                {
+                    var tBtn = MakeButton(root, $"技:{g.definition.techniqueName}", new Vector2(bx, 84),
+                        new Vector2(200, 40), new Color(0.4f,0.4f,0.6f), fromBottom:true, anchorRight:true);
+                    tBtn.onClick.AddListener(() => {
+                        if (TechniqueActivator.TryActivate(engine, g, out var reason)) { AfterHumanAction(); }
+                        else { AddLog($"技不可: {reason}"); Redraw(); }
+                    });
+                }
+                // 攻撃
+                if (!g.summoningSick && !g.attackedThisTurn && g.CurrentAttack > 0)
+                {
+                    var aBtn = MakeButton(root, "攻撃（対象選択）", new Vector2(bx, 128),
+                        new Vector2(200, 40), new Color(0.6f,0.4f,0.4f), fromBottom:true, anchorRight:true);
+                    aBtn.onClick.AddListener(() => {
+                        if (foe.board.Count == 0)
+                        { engine.Attack(g, null); selectedAttacker = null; AfterHumanAction(); }
+                        else { mode = Mode.SelectAttackTarget; Redraw(); }
+                    });
+                    var fBtn = MakeButton(root, "本体を直接攻撃", new Vector2(bx, 172),
+                        new Vector2(200, 40), new Color(0.6f,0.45f,0.3f), fromBottom:true, anchorRight:true);
+                    fBtn.onClick.AddListener(() => { engine.Attack(g, null); selectedAttacker = null; AfterHumanAction(); });
+                }
+            }
+
+            if (mode == Mode.SelectAttackTarget)
+            {
+                var c = MakeButton(root, "攻撃キャンセル", new Vector2(bx, 84), new Vector2(160, 40),
+                    new Color(0.4f,0.4f,0.4f), fromBottom:true, anchorRight:true);
+                c.onClick.AddListener(() => { mode = Mode.Normal; Redraw(); });
+            }
+
+            if (mode == Mode.SelectSpellTarget && pendingSpell != null)
+            {
+                string who = pendingSpellTargetsEnemy ? "相手" : "自分";
+                MakeLabel(root, $"▶「{pendingSpell.definition.trueName}」の対象（{who}の守護者）を選択",
+                    new Vector2(20, 188), new Vector2(640, 30), 20, TextAnchor.MiddleLeft, Color.yellow, fromBottom:true);
+                var c = MakeButton(root, "対象選択をやめる", new Vector2(bx, 84), new Vector2(180, 40),
+                    new Color(0.4f,0.4f,0.4f), fromBottom:true, anchorRight:true);
+                c.onClick.AddListener(() => { pendingSpell = null; mode = Mode.Normal; Redraw(); });
+            }
+        }
+
+        void AfterHumanAction()
+        {
+            if (mode != Mode.Inscribe) mode = Mode.Normal;
+            pendingSpell = null;
+            Redraw();
+        }
+
+        // AIの番なら自動進行
+        void AfterAiMaybe()
+        {
+            Redraw();
+            // AIの手番をまとめて処理
+            int safety = 0;
+            while (engine.result == GameResult.Ongoing && engine.currentPlayer == 1 && safety++ < 5)
+            {
+                AIController.TakeTurn(engine);
+            }
+            Redraw();
+        }
+
+        // ───────── モード開始・進行・画面 ─────────
+        void StartGame(bool ai)
+        {
+            lastWasAI = ai; isLocalPvP = !ai;
+            inTitle = false; awaitingPass = false; showRules = false;
+            selectedAttacker = null; mode = Mode.Normal;
+            logLines.Clear();
+            engine = new GameEngine();
+            engine.OnLog += AddLog;
+            engine.OnStateChanged += Redraw;
+            engine.NewGame(player1IsAI: ai);
+            AddLog(ai ? "=== 対戦開始：あなた vs AI ==="
+                      : "=== ローカル対人戦 開始：プレイヤー1 vs プレイヤー2 ===");
+            Redraw();
+        }
+
+        // 「ターン終了」後の進行：AIなら自動、対人戦なら目隠し画面を挟む
+        void AdvanceTurn()
+        {
+            selectedAttacker = null; mode = Mode.Normal; HideCardDetail();
+            if (engine.result != GameResult.Ongoing) { Redraw(); return; }
+            if (engine.players[engine.currentPlayer].isAI) { AfterAiMaybe(); return; }
+            if (isLocalPvP) { awaitingPass = true; Redraw(); return; }
+            Redraw();
+        }
+
+        void DrawTitle()
+        {
+            var titleT = MakeChildText(root, "記憶の遺跡", 60, TextAnchor.MiddleCenter, Color.white);
+            var trt = titleT.rectTransform;
+            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 0.5f);
+            trt.anchoredPosition = new Vector2(0, 190); trt.sizeDelta = new Vector2(800, 90);
+
+            var subT = MakeChildText(root, "― Kioku no Iseki ―", 22, TextAnchor.MiddleCenter, new Color(0.7f, 0.7f, 0.75f));
+            var srt = subT.rectTransform;
+            srt.anchorMin = srt.anchorMax = srt.pivot = new Vector2(0.5f, 0.5f);
+            srt.anchoredPosition = new Vector2(0, 138); srt.sizeDelta = new Vector2(800, 40);
+
+            var b1 = MakeCenterButton("AIと対戦", new Vector2(0, 40), new Vector2(340, 60), new Color(0.30f, 0.40f, 0.55f));
+            b1.onClick.AddListener(() => StartGame(true));
+            var b2 = MakeCenterButton("2人で対戦（ローカル）", new Vector2(0, -32), new Vector2(340, 56), new Color(0.32f, 0.50f, 0.40f));
+            b2.onClick.AddListener(() => StartGame(false));
+            var b3 = MakeCenterButton("オンラインで対戦（β）", new Vector2(0, -98), new Vector2(340, 56), new Color(0.35f, 0.38f, 0.55f));
+            b3.onClick.AddListener(() => {
+                if (LaunchOnline != null) LaunchOnline.Invoke();
+                else AddLog("オンライン機能が読み込まれていません（パッケージ/コンパイルを確認）。");
+            });
+            var b4 = MakeCenterButton("ルールを見る", new Vector2(0, -164), new Vector2(340, 56), new Color(0.40f, 0.40f, 0.48f));
+            b4.onClick.AddListener(() => { showRules = true; Redraw(); });
+        }
+
+        void DrawPassScreen()
+        {
+            var next = engine.players[engine.currentPlayer];
+            var dim = MakePanel(root, new Color(0.03f, 0.03f, 0.05f, 1f), "PassScreen");
+            Stretch(dim.rectTransform);
+
+            var t = MakeChildText(dim.transform, $"{next.name} の番です\n\n画面を {next.name} に渡してください", 30, TextAnchor.MiddleCenter, Color.white);
+            var trt = t.rectTransform;
+            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 0.5f);
+            trt.anchoredPosition = new Vector2(0, 60); trt.sizeDelta = new Vector2(900, 200);
+
+            var b = MakeCenterButton("めくる（自分の番を開始）", new Vector2(0, -90), new Vector2(400, 64), new Color(0.35f, 0.45f, 0.6f));
+            b.onClick.AddListener(() => { awaitingPass = false; Redraw(); });
+        }
+
+        void DrawGameOver()
+        {
+            var winner = engine.result == GameResult.Player0Win ? engine.players[0] : engine.players[1];
+            string msg = isLocalPvP ? $"{winner.name} の勝利！"
+                                    : (engine.result == GameResult.Player0Win ? "あなたの勝利！" : "あなたの敗北…");
+            var banner = MakeChildText(root, msg, 48, TextAnchor.MiddleCenter, Color.yellow);
+            var brt = banner.rectTransform;
+            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 0.5f);
+            brt.anchoredPosition = new Vector2(0, 60); brt.sizeDelta = new Vector2(700, 100);
+
+            var again = MakeCenterButton("もう一度", new Vector2(-95, -30), new Vector2(170, 54), new Color(0.32f, 0.5f, 0.4f));
+            again.onClick.AddListener(() => StartGame(lastWasAI));
+            var toTitle = MakeCenterButton("タイトルへ", new Vector2(95, -30), new Vector2(170, 54), new Color(0.45f, 0.4f, 0.5f));
+            toTitle.onClick.AddListener(() => { inTitle = true; selectedAttacker = null; HideCardDetail(); Redraw(); });
+        }
+
+        Button MakeCenterButton(string label, Vector2 centerPos, Vector2 size, Color color)
+        {
+            var go = new GameObject("CButton");
+            go.transform.SetParent(root, false);
+            var img = go.AddComponent<Image>(); img.color = color;
+            var btn = go.AddComponent<Button>();
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = centerPos; rt.sizeDelta = size;
+            var t = MakeChildText(go.transform, label, 20, TextAnchor.MiddleCenter, Color.white);
+            Stretch(t.rectTransform);
+            return btn;
+        }
+
+        // ───────── UI部品 ─────────
+        void DrawLogPanel()
+        {
+            var panel = MakePanel(root, new Color(0,0,0,0.45f), "LogPanel");
+            panel.raycastTarget = false; // クリックをカードへ透過（ログは表示専用）
+            var rt = panel.rectTransform;
+            // 右側中央（ボードのカードは左から並ぶので重ならない）
+            rt.anchorMin = new Vector2(1, 0.5f); rt.anchorMax = new Vector2(1, 0.5f);
+            rt.pivot = new Vector2(1, 0.5f);
+            rt.anchoredPosition = new Vector2(-16, 0);
+            rt.sizeDelta = new Vector2(360, 170);
+
+            logText = MakeChildText(panel.transform, string.Join("\n", logLines), 14, TextAnchor.LowerLeft, new Color(0.86f,0.86f,0.86f));
+            Stretch(logText.rectTransform, 8);
+        }
+
+        void AddLog(string s)
+        {
+            logLines.Add(s);
+            while (logLines.Count > 9) logLines.RemoveAt(0);
+            if (logText != null) logText.text = string.Join("\n", logLines);
+        }
+
+        // 石板/遺跡テーマのカード枠（C案）。系統色は枠の縁、技は簡易テキスト、詳細はホバーで表示。
+        // カード裏面（石板に彫り込んだ「記憶の遺跡」の紋章）。相手の手札・山札に使う。
+        GameObject MakeCardBack(Transform parent, Vector2 pos, Vector2 size, bool fromTop=false, bool fromBottom=false, bool anchorRight=false)
+        {
+            float s = size.x / 128f; // 128幅を基準にした拡縮
+            Color edge = new Color(0.33f, 0.27f, 0.42f);   // 記憶＝深い紫
+            Color bronzeCol = new Color(0.62f, 0.49f, 0.27f);
+            Color stone = new Color(0.13f, 0.12f, 0.15f);
+
+            var go = new GameObject("CardBack");
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>(); img.color = edge; img.raycastTarget = false;
+            SetAnchor(img.rectTransform, pos, size, fromTop, fromBottom, anchorRight);
+
+            // 銅トリム
+            var bronze = new GameObject("Bronze"); bronze.transform.SetParent(go.transform, false);
+            var bi = bronze.AddComponent<Image>(); bi.color = bronzeCol; bi.raycastTarget = false;
+            var brt = bi.rectTransform; brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
+            brt.offsetMin = new Vector2(3*s,3*s); brt.offsetMax = new Vector2(-3*s,-3*s);
+
+            // 石板の面
+            var face = new GameObject("Face"); face.transform.SetParent(go.transform, false);
+            var fi = face.AddComponent<Image>(); fi.color = stone; fi.raycastTarget = false;
+            var frt = fi.rectTransform; frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+            frt.offsetMin = new Vector2(5*s,5*s); frt.offsetMax = new Vector2(-5*s,-5*s);
+
+            // 中央の同心円彫紋
+            Vector2 ctr = new Vector2(0.5f, 0.5f);
+            MakeCircle(go.transform, bronzeCol,                       ctr, Vector2.zero, 78*s);
+            MakeCircle(go.transform, stone,                          ctr, Vector2.zero, 70*s);
+            MakeCircle(go.transform, bronzeCol * 0.85f,              ctr, Vector2.zero, 50*s);
+            MakeCircle(go.transform, new Color(0.10f,0.09f,0.11f),   ctr, Vector2.zero, 44*s);
+
+            // 中央の回転菱形（系統を表さない統一の宝珠）
+            void Diamond(Vector2 center, float sz, Color col)
+            {
+                var d = new GameObject("Diamond"); d.transform.SetParent(go.transform, false);
+                var di = d.AddComponent<Image>(); di.color = col; di.raycastTarget = false;
+                var drt = di.rectTransform;
+                drt.anchorMin = drt.anchorMax = new Vector2(0.5f,0.5f); drt.pivot = new Vector2(0.5f,0.5f);
+                drt.anchoredPosition = center; drt.sizeDelta = new Vector2(sz, sz);
+                d.transform.localEulerAngles = new Vector3(0,0,45);
+                var o = d.AddComponent<Outline>(); o.effectColor = bronzeCol; o.effectDistance = new Vector2(1f*s,-1f*s);
+            }
+            Diamond(Vector2.zero, 30*s, edge * 1.2f);
+
+            // 中央の「記」字
+            var glyph = MakeChildText(go.transform, "記", Mathf.Max(8, Mathf.RoundToInt(20*s)),
+                TextAnchor.MiddleCenter, new Color(0.93f,0.87f,0.73f));
+            var grt2 = glyph.rectTransform;
+            grt2.anchorMin = grt2.anchorMax = new Vector2(0.5f,0.5f); grt2.pivot = new Vector2(0.5f,0.5f);
+            grt2.anchoredPosition = Vector2.zero; grt2.sizeDelta = new Vector2(30*s,30*s);
+
+            // 四隅の小菱形
+            float cx = size.x*0.5f - 13*s, cy = size.y*0.5f - 13*s;
+            Diamond(new Vector2(-cx,  cy), 9*s, bronzeCol);
+            Diamond(new Vector2( cx,  cy), 9*s, bronzeCol);
+            Diamond(new Vector2(-cx, -cy), 9*s, bronzeCol);
+            Diamond(new Vector2( cx, -cy), 9*s, bronzeCol);
+
+            return go;
+        }
+
+        static Sprite s_frame; static bool s_frameLoaded;
+        Sprite GetFrameSprite()
+        {
+            if (!s_frameLoaded) { s_frame = Resources.Load<Sprite>("Frames/frame_base"); s_frameLoaded = true; }
+            return s_frame;
+        }
+
+        Button MakeCard(Transform parent, CardInstance c, Vector2 pos, bool fromTop=false, bool fromBottom=false)
+        {
+            var def = c.definition;
+            bool isGuardian = def.kind == CardKind.Guardian;
+            Color edge = isGuardian ? ElementColor[def.element]
+                       : def.kind == CardKind.Recollection ? new Color(0.5f,0.5f,0.55f)
+                       : new Color(0.6f,0.52f,0.38f);
+
+            // 一点アンカー配置の小ヘルパー
+            void PlaceAt(RectTransform rt, Vector2 a, Vector2 sz)
+            {
+                rt.anchorMin = rt.anchorMax = a; rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = Vector2.zero; rt.sizeDelta = sz;
+            }
+            // 文字に黒縁取り（フレーム上でも読めるように）
+            void Shade(Graphic g)
+            {
+                var o = g.gameObject.AddComponent<Outline>();
+                o.effectColor = new Color(0,0,0,0.9f); o.effectDistance = new Vector2(1.2f,-1.2f);
+            }
+
+            Vector2 cardSize = new Vector2(128, 180); // フレーム画像(864x1216≒5:7)に合わせた比率
+
+            // ルート＝フレーム画像＋クリック領域
+            var go = new GameObject("Card_" + def.id);
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            var btn = go.AddComponent<Button>();
+            SetAnchor(img.rectTransform, pos, cardSize, fromTop, fromBottom, false);
+            var frameSprite = GetFrameSprite();
+            if (frameSprite != null) { img.sprite = frameSprite; img.color = Color.white; }
+            else img.color = new Color(0.20f, 0.18f, 0.15f);
+
+            // イラスト（窓の中。窓は正方形に近いので絵は幅いっぱい＋上下に石面が覗く）
+            var art = new GameObject("Art"); art.transform.SetParent(go.transform, false);
+            var artImg = art.AddComponent<Image>(); artImg.raycastTarget = false;
+            var sprite = GetCardArt(def, edge);
+            if (sprite != null) { artImg.sprite = sprite; artImg.color = Color.white; artImg.preserveAspect = false; }
+            else artImg.color = new Color(edge.r*0.4f, edge.g*0.4f, edge.b*0.4f);
+            var art_rt = artImg.rectTransform;
+            art_rt.anchorMin = new Vector2(0.16f, 0.53f); art_rt.anchorMax = new Vector2(0.83f, 0.89f);
+            art_rt.offsetMin = Vector2.zero; art_rt.offsetMax = Vector2.zero;
+
+            // 名前バナー（クリーム文字＋黒縁でどの地でも読める）
+            var nameT = MakeChildText(go.transform, def.trueName, 11, TextAnchor.MiddleCenter, new Color(0.97f,0.92f,0.80f));
+            var nrt = nameT.rectTransform;
+            nrt.anchorMin = new Vector2(0.31f,0.46f); nrt.anchorMax = new Vector2(0.71f,0.51f);
+            nrt.offsetMin = Vector2.zero; nrt.offsetMax = Vector2.zero;
+            Shade(nameT);
+
+            // 技/種別テキスト（最下部パネル）
+            string sub = isGuardian ? def.techniqueName
+                       : def.kind == CardKind.Recollection ? "想起術" : "礎石";
+            var subT = MakeChildText(go.transform, sub, 11, TextAnchor.MiddleCenter, new Color(0.95f,0.89f,0.75f));
+            var subrt = subT.rectTransform;
+            subrt.anchorMin = new Vector2(0.12f,0.05f); subrt.anchorMax = new Vector2(0.88f,0.17f);
+            subrt.offsetMin = Vector2.zero; subrt.offsetMax = Vector2.zero;
+            Shade(subT);
+
+            // コスト（名前帯の左の円・金）
+            var costT = MakeChildText(go.transform, def.cost.ToString(), 15, TextAnchor.MiddleCenter, new Color(1f,0.86f,0.42f));
+            PlaceAt(costT.rectTransform, new Vector2(0.148f,0.487f), new Vector2(22,22));
+            Shade(costT);
+
+            if (isGuardian)
+            {
+                // 系統文字（名前帯の右の菱形・白）
+                var elT = MakeChildText(go.transform, ElementName(def.element), 11, TextAnchor.MiddleCenter, new Color(1f,0.97f,0.88f));
+                PlaceAt(elT.rectTransform, new Vector2(0.865f,0.477f), new Vector2(20,20));
+                Shade(elT);
+
+                // 攻撃（左の丸ソケット・赤）／ 防御（右の丸ソケット・青）
+                var atkT = MakeChildText(go.transform, c.CurrentAttack.ToString(), 15, TextAnchor.MiddleCenter, new Color(1f,0.55f,0.42f));
+                PlaceAt(atkT.rectTransform, new Vector2(0.810f,0.266f), new Vector2(22,22));
+                Shade(atkT);
+                var defT = MakeChildText(go.transform, c.RemainingDefense.ToString(), 15, TextAnchor.MiddleCenter, new Color(0.58f,0.82f,1f));
+                PlaceAt(defT.rectTransform, new Vector2(0.189f,0.266f), new Vector2(22,22));
+                Shade(defT);
+
+                // 刻印 / 召喚酔い（中央の装飾帯）
+                string flags = (c.engravingCount > 0 ? $"刻{c.engravingCount} " : "") + (c.summoningSick ? "酔" : "");
+                if (flags.Length > 0)
+                {
+                    var fT = MakeChildText(go.transform, flags, 9, TextAnchor.MiddleCenter, new Color(0.96f,0.86f,0.52f));
+                    PlaceAt(fT.rectTransform, new Vector2(0.5f,0.40f), new Vector2(64,14));
+                    Shade(fT);
+                }
+            }
+
+            // ホバーでスキル詳細を表示
+            var trig = go.AddComponent<EventTrigger>();
+            var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enter.callback.AddListener((_) => ShowCardDetail(c));
+            trig.triggers.Add(enter);
+            var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exit.callback.AddListener((_) => { if (selectedAttacker != null) ShowCardDetail(selectedAttacker); else HideCardDetail(); });
+            trig.triggers.Add(exit);
+
+            return btn;
+        }
+
+        // 彫り込み円バッジ用の円スプライト（コスト・攻撃・防御）
+        static Sprite s_circle;
+        Sprite CircleSprite()
+        {
+            if (s_circle != null) return s_circle;
+            int sz = 48;
+            var tex = new Texture2D(sz, sz, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            float c = sz / 2f - 0.5f, r = sz / 2f - 1f;
+            for (int y = 0; y < sz; y++)
+                for (int x = 0; x < sz; x++)
+                {
+                    float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
+                    tex.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(r - d)));
+                }
+            tex.Apply();
+            s_circle = Sprite.Create(tex, new Rect(0, 0, sz, sz), new Vector2(0.5f, 0.5f));
+            return s_circle;
+        }
+
+        Image MakeCircle(Transform parent, Color color, Vector2 anchor, Vector2 anchoredPos, float size)
+        {
+            var go = new GameObject("Circle");
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.sprite = CircleSprite(); img.color = color; img.raycastTarget = false;
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.pivot = new Vector2(0.5f, 0.5f); // 中心基準（anchoredPos=円の中心位置）
+            rt.anchoredPosition = anchoredPos; rt.sizeDelta = new Vector2(size, size);
+            return img;
+        }
+
+        // 盾型スプライト（攻撃/防御バッジ用）。上は平ら、下は中央へ尖る紋章形。
+        static Sprite s_shield;
+        Sprite ShieldSprite()
+        {
+            if (s_shield != null) return s_shield;
+            int w = 44, h = 52;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int hit = 0;
+                    for (int sy = 0; sy < 2; sy++)
+                        for (int sx = 0; sx < 2; sx++)
+                        {
+                            float nx = (x + 0.25f + sx * 0.5f) / w;
+                            float ny = (y + 0.25f + sy * 0.5f) / h; // ny=0 が下
+                            float half;
+                            if (ny >= 0.40f) half = 0.44f;                 // 上部：直線の側辺
+                            else half = 0.44f * (ny / 0.40f);              // 下部：中央へ尖る
+                            if (Mathf.Abs(nx - 0.5f) < half && ny <= 0.98f) hit++;
+                        }
+                    tex.SetPixel(x, y, new Color(1, 1, 1, hit / 4f));
+                }
+            tex.Apply();
+            s_shield = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f));
+            return s_shield;
+        }
+
+        // 盾バッジ（攻撃/防御）：盾スプライト＋縁色＋数字
+        void MakeShield(Transform parent, Vector2 anchor, Vector2 anchoredPos, Color rim, string num, Color numColor)
+        {
+            var go = new GameObject("Shield");
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.sprite = ShieldSprite(); img.color = new Color(0.10f,0.09f,0.075f); img.raycastTarget = false;
+            var rt = img.rectTransform; rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
+            rt.anchoredPosition = anchoredPos; rt.sizeDelta = new Vector2(30, 36);
+            var o = go.AddComponent<Outline>(); o.effectColor = rim; o.effectDistance = new Vector2(1.5f, -1.5f);
+            var t = MakeChildText(go.transform, num, 15, TextAnchor.MiddleCenter, numColor);
+            var trt = t.rectTransform;
+            trt.anchorMin = new Vector2(0, 0.22f); trt.anchorMax = new Vector2(1, 1);
+            trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
+        }
+
+        // ───────── カードアート（読み込み or 自動生成） ─────────
+        static readonly Dictionary<string, Sprite> s_artCache = new Dictionary<string, Sprite>();
+
+        Sprite GetCardArt(CardData def, Color tint)
+        {
+            if (s_artCache.TryGetValue(def.id, out var cached)) return cached;
+
+            Sprite sp = null;
+            // 1) ユーザー画像を優先（Resources/CardArt/ 配下）
+            //    守護者は guardian_001〜030.png、それ以外は {id}.png でも可
+            if (def.kind == CardKind.Guardian && def.id.Length > 1 && int.TryParse(def.id.Substring(1), out int gi))
+                sp = Resources.Load<Sprite>($"CardArt/guardian_{gi:000}");
+            if (sp == null) sp = Resources.Load<Sprite>($"CardArt/{def.id}");
+            // 2) 無ければカードIDから決定論的に自動生成（系統カラーの抽象エンブレム）
+            if (sp == null) sp = GenerateProceduralArt(def, tint);
+
+            s_artCache[def.id] = sp;
+            return sp;
+        }
+
+        Sprite GenerateProceduralArt(CardData def, Color tint)
+        {
+            const int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+            uint h = Fnv(def.id);
+            var rng = new System.Random(unchecked((int)h));
+
+            Color top = tint * 0.6f; top.a = 1f;
+            Color bottom = tint * 0.18f; bottom.a = 1f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    tex.SetPixel(x, y, Color.Lerp(bottom, top, (float)y / size));
+
+            // 決定論的な幾何模様（カードごとに異なる）
+            int shapes = 4 + (int)(h % 5);
+            for (int i = 0; i < shapes; i++)
+            {
+                int cx = rng.Next(size), cy = rng.Next(size), r = 4 + rng.Next(13);
+                Color col = tint * (0.7f + (float)rng.NextDouble() * 0.7f); col.a = 1f;
+                for (int yy = -r; yy <= r; yy++)
+                    for (int xx = -r; xx <= r; xx++)
+                    {
+                        if (xx * xx + yy * yy > r * r) continue;
+                        int px = cx + xx, py = cy + yy;
+                        if (px >= 0 && px < size && py >= 0 && py < size) tex.SetPixel(px, py, col);
+                    }
+            }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+        }
+
+        static uint Fnv(string s)
+        {
+            uint h = 2166136261;
+            foreach (char c in s) { h ^= c; h *= 16777619; }
+            return h;
+        }
+
+        Image MakePanel(Transform parent, Color color, string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.color = color;
+            return img;
+        }
+
+        Text MakeLabel(Transform parent, string text, Vector2 pos, Vector2 size, int fontSize,
+            TextAnchor anchor, Color color, bool fromTop=true, bool fromBottom=false, bool anchorRight=false)
+        {
+            var go = new GameObject("Label");
+            go.transform.SetParent(parent, false);
+            var t = go.AddComponent<Text>();
+            ApplyText(t, text, fontSize, anchor, color);
+            SetAnchor(t.rectTransform, pos, size, fromTop, fromBottom, anchorRight);
+            return t;
+        }
+
+        Button MakeButton(Transform parent, string label, Vector2 pos, Vector2 size, Color color,
+            bool fromTop=false, bool fromBottom=false, bool anchorRight=false)
+        {
+            var go = new GameObject("Button");
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.color = color;
+            var btn = go.AddComponent<Button>();
+            SetAnchor(img.rectTransform, pos, size, fromTop, fromBottom, anchorRight);
+            var t = MakeChildText(go.transform, label, 16, TextAnchor.MiddleCenter, Color.white);
+            Stretch(t.rectTransform);
+            return btn;
+        }
+
+        Text MakeChildText(Transform parent, string text, int fontSize, TextAnchor anchor, Color color)
+        {
+            var go = new GameObject("Text");
+            go.transform.SetParent(parent, false);
+            var t = go.AddComponent<Text>();
+            ApplyText(t, text, fontSize, anchor, color);
+            t.raycastTarget = false;
+            return t;
+        }
+
+        void ApplyText(Text t, string text, int fontSize, TextAnchor anchor, Color color)
+        {
+            t.text = text; t.font = jpFont; t.fontSize = fontSize; t.alignment = anchor;
+            t.color = color; t.horizontalOverflow = HorizontalWrapMode.Overflow;
+            t.verticalOverflow = VerticalWrapMode.Overflow;
+        }
+
+        // ──── レイアウトヘルパ ────
+        void SetAnchor(RectTransform rt, Vector2 pos, Vector2 size, bool fromTop, bool fromBottom, bool anchorRight)
+        {
+            float ax = anchorRight ? 1 : 0;
+            float ay = fromBottom ? 0 : 1;
+            rt.anchorMin = new Vector2(ax, ay); rt.anchorMax = new Vector2(ax, ay);
+            rt.pivot = new Vector2(ax, ay);
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = size;
+        }
+
+        void Stretch(RectTransform rt, float pad = 0)
+        {
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(pad, pad); rt.offsetMax = new Vector2(-pad, -pad);
+        }
+        void Center(RectTransform rt)
+        {
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+        }
+
+        void Outline(GameObject go, Color c)
+        {
+            var o = go.AddComponent<Outline>();
+            o.effectColor = c; o.effectDistance = new Vector2(3, 3);
+        }
+    }
+}

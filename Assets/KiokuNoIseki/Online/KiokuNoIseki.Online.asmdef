@@ -1,0 +1,23 @@
+{
+    "name": "KiokuNoIseki.Online",
+    "rootNamespace": "KiokuNoIseki.Online",
+    "references": [
+        "KiokuNoIseki",
+        "Unity.Netcode.Runtime",
+        "Unity.Collections",
+        "Unity.Services.Core",
+        "Unity.Services.Authentication",
+        "Unity.Services.Multiplayer",
+        "UnityEngine.UI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

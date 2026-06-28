@@ -1,0 +1,43 @@
+# Unity generated / machine-local — do not commit
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Asset meta data should only be ignored when the corresponding asset is also ignored
+!/[Aa]ssets/**/*.meta
+
+# Build artifacts / logs
+build.log
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.exe
+*.zip
+
+# Visual Studio / Rider / IDE
+.vs/
+.vsconfig
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Crash reports
+sysinfo.txt
+*.stackdump
