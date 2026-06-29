@@ -113,6 +113,13 @@ namespace KiokuNoIseki
             foreach (var c in p.board) c.ResetForNewTurn();
             foreach (var c in p.board) c.summoningSick = false; // 自分の番が来たら酔い解除
 
+            // 生存刻印（記憶領域リワーク）：前の自ターンから生き延びた守護者は刻印+1（攻撃/防御+1）
+            foreach (var c in p.board)
+            {
+                c.engravingCount = Math.Min(3, c.engravingCount + 1);
+                Log($"{p.name}: 「{c.definition.trueName}」が場で生き延び刻印{c.engravingCount}（攻防+1）。");
+            }
+
             // 想起減衰フェイズ
             if (p.skipNextDecay)
             {
@@ -249,9 +256,30 @@ namespace KiokuNoIseki
 
             if (target == null)
             {
-                // 直接攻撃
-                o.hp -= attacker.CurrentAttack;
-                Log($"{attacker.definition.trueName} が相手に直接{attacker.CurrentAttack}ダメージ。");
+                int dmg = attacker.CurrentAttack;
+                if (o.memoryZone.Count > 0)
+                {
+                    // 記憶領域＝盾（記憶領域リワーク）：残響が最も低いカードが受け、砕けたら共有デッキへ
+                    var shield = o.memoryZone.OrderBy(c => c.RemainingDefense).First();
+                    shield.damageTaken += dmg;
+                    if (shield.RemainingDefense <= 0)
+                    {
+                        o.memoryZone.Remove(shield);
+                        shield.damageTaken = 0; shield.turnAttackMod = 0; shield.turnDefenseMod = 0;
+                        deck.ReturnToRandomPosition(shield); // 砕けて遺構へ（刻印保持）
+                        Log($"{attacker.definition.trueName} の{dmg}ダメージで記憶領域「{shield.definition.trueName}」が砕け、刻印{shield.engravingCount}を保持して遺構へ戻った。");
+                    }
+                    else
+                    {
+                        Log($"{attacker.definition.trueName} の{dmg}ダメージを記憶領域「{shield.definition.trueName}」が受けた（残響 残り{shield.RemainingDefense}）。");
+                    }
+                }
+                else
+                {
+                    // 記憶領域が空の時だけHPに通る
+                    o.hp -= dmg;
+                    Log($"{attacker.definition.trueName} が相手に直接{dmg}ダメージ。");
+                }
             }
             else
             {
@@ -286,23 +314,15 @@ namespace KiokuNoIseki
             card.permDefenseBuff = 0;
             card.turnAttackMod = 0;
             card.turnDefenseMod = 0;
-            card.engravingCount += 1;
+            card.engravingCount = Math.Min(3, card.engravingCount + 1);
             card.summoningSick = false;
             card.techniqueUsedThisTurn = false;
             card.attackedThisTurn = false;
 
-            if (card.engravingCount >= 4 && destroyer != null)
-            {
-                // 刻印3つ蓄積後に再度破壊→破壊側の記憶領域へ（11章 古き盟約用）
-                card.engravingCount = 3;
-                destroyer.memoryZone.Add(card);
-                Log($"「{card.definition.trueName}」(完全刻印) が {destroyer.name} の記憶領域へ。");
-            }
-            else
-            {
-                deck.ReturnToRandomPosition(card);
-                Log($"「{card.definition.trueName}」が刻印{card.engravingCount}を得て遺構へ転生。");
-            }
+            // 記憶領域リワーク：破壊された守護者は常に共有デッキへ転生（刻印保持）。
+            // 記憶領域へは「自分の守護者が刻印3で自ターン終了時に昇華」する経路のみ（EndTurn参照）。
+            deck.ReturnToRandomPosition(card);
+            Log($"「{card.definition.trueName}」が刻印{card.engravingCount}を得て遺構へ転生。");
         }
 
         // 終了フェイズ→相手にターンを渡す（7-5, 9章）
@@ -336,6 +356,23 @@ namespace KiokuNoIseki
                 Log($"{p.name}: 手札上限({p.HandLimit})を超えたため「{discard.definition.trueName}」を遺構へ戻した。");
             }
             p.handLimitModifierThisTurn = 0;
+
+            // 昇華（記憶領域リワーク）：刻印3以上の守護者は自ターン終了時に記憶領域へ退場（盾＋勝利進捗）
+            for (int i = p.board.Count - 1; i >= 0; i--)
+            {
+                var c = p.board[i];
+                if (c.engravingCount >= 3)
+                {
+                    c.damageTaken = 0;                 // 残響を満タンに
+                    c.turnAttackMod = 0; c.turnDefenseMod = 0;
+                    c.summoningSick = false; c.attackedThisTurn = false; c.techniqueUsedThisTurn = false;
+                    p.board.RemoveAt(i);
+                    p.memoryZone.Add(c);
+                    Log($"{p.name}: 「{c.definition.trueName}」が完全刻印に達し記憶領域へ昇華（残響{c.RemainingDefense}）。");
+                }
+            }
+            CheckWinConditions();
+            if (result != GameResult.Ongoing) { OnStateChanged?.Invoke(); return; }
 
             // 手番交代
             currentPlayer = 1 - currentPlayer;
