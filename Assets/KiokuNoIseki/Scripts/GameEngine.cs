@@ -245,6 +245,13 @@ namespace KiokuNoIseki
             if (attacker.summoningSick || attacker.attackedThisTurn) return false;
             if (attacker.CurrentAttack <= 0) return false;
 
+            // 守護：相手に守護持ちが場にいる間は本体(HP)を直接攻撃できない（先に守護を倒す）
+            if (target == null && o.board.Any(g => g.definition.guard && g.RemainingDefense > 0))
+            {
+                Log("相手に守護がいるため本体を直接攻撃できない。");
+                return false; // 行動権は消費しない
+            }
+
             attacker.attackedThisTurn = true;
 
             if (target == null)
@@ -275,6 +282,14 @@ namespace KiokuNoIseki
             if (card.RemainingDefense > 0) return;
             if (!owner.board.Contains(card)) return;
             owner.board.Remove(card);
+
+            // 瓦礫の砦：自分の守護者が破壊されるたび、相手に1ダメージ
+            if (owner.HasFortThorn && byOpponent != null)
+            {
+                byOpponent.hp -= 1;
+                Log($"{owner.name}の瓦礫の砦：砕けた瓦礫が相手に1ダメージ。");
+            }
+
             DoReincarnate(card, byOpponent);
         }
 
@@ -322,8 +337,7 @@ namespace KiokuNoIseki
                     if (c.weatheringCounter >= 3)
                     {
                         p.hand.RemoveAt(i);
-                        p.AddRubble(1);
-                        Log($"{p.name}: 「{c.definition.trueName}」が風化で消滅し瓦礫1個に（完全除外）。");
+                        Log($"{p.name}: 「{c.definition.trueName}」が風化で消滅した（完全除外）。");
                     }
                 }
             }

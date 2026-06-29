@@ -84,7 +84,7 @@ namespace KiokuNoIseki
             // ── 想起術（14種） ──
             list.Add(R("r01","微かな残響",1,EffectId.GainGauge,1,"自分の想起ゲージを+1する（上限は超えない）。"));
             list.Add(R("r02","掘削の儀",2,EffectId.ExtraExcavate,1,"遺構デッキから追加で1枚発掘する。ただしそのターンの終了フェイズで手札上限を1減らす。"));
-            list.Add(R("r03","忘却の代償",2,EffectId.SacrificeForRubble,2,"自分の手札を1枚捧げる（除外する）。瓦礫トークンを2個得る。"));
+            list.Add(R("r03","忘却の代償",2,EffectId.SacrificeForBurn,3,"自分の手札を1枚（最もコストが低い）代償に捧げる。相手の防御力が最も低い守護者に3ダメージ。いなければ相手に3ダメージ。"));
             list.Add(R("r04","古き盟約の欠片",3,EffectId.EngraveAlly,1,"自分の場の守護者1体を選ぶ。その守護者に刻印を1つ刻む。"));
             list.Add(R("r05","静かな目覚め",2,EffectId.RemoveSicknessAlly,0,"自分の場の守護者1体の召喚酔いを即座に解除する。"));
             list.Add(R("r06","砕けし記憶",1,EffectId.DamageEnemyGuardian,1,"相手の守護者1体に1ダメージを与える。"));
@@ -95,13 +95,17 @@ namespace KiokuNoIseki
             list.Add(R("r11","逆引きの理",2,EffectId.ResetWeathering,0,"自分の手札のカード1枚の風化カウンターを0にリセットする。"));
             list.Add(R("r12","導きの残光",1,EffectId.DigSelectNext,3,"次に自分が発掘する際、遺構デッキの上から3枚を見て1枚を選んで手札に加える。"));
             list.Add(R("r13","無音の盟約",4,EffectId.BuffAllAllyAtkDefPerm,1,"自分の場の守護者全体の攻撃力と防御力を+1する（永続）。"));
-            list.Add(R("r14","再誦の記憶",3,EffectId.ReturnMemoryToDeck,0,"自分の記憶領域からカード1枚を、刻印を保持したまま遺構デッキのランダムな位置に戻す。"));
+            list.Add(R("r14","再誦の記憶",2,EffectId.DrawCard,1,"遺構デッキから1枚発掘する（追加ドロー）。"));
 
             // ── 礎石（4種） ──
             list.Add(C("cs_altar","記憶の祭壇",2,"刻む際の想起ゲージ上限の上昇量が+1される。"));
             list.Add(C("cs_cathedral","忘れられし聖堂",3,"手札の風化が増え始めるまでの猶予が1ターン延びる。"));
             list.Add(C("cs_lantern","真名の灯篭",2,"自分の守護者の技の詠唱コストが1下がる（最低1）。"));
-            list.Add(C("cs_fort","瓦礫の砦",3,"瓦礫トークンを得るたびに追加でもう1個多く得る。"));
+            list.Add(C("cs_fort","瓦礫の砦",3,"自分の守護者が破壊されるたび、砕けた瓦礫が相手に1ダメージを与える。"));
+
+            // 守護キーワード（6体）：場にいる間、相手は本体を直接攻撃できない
+            var guardIds = new HashSet<string> { "g007", "g021", "g016", "g011", "g023", "g024" };
+            foreach (var c in list) if (guardIds.Contains(c.id)) c.guard = true;
 
             return list; // 計48枚
         }

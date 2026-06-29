@@ -85,7 +85,11 @@ namespace KiokuNoIseki
                 var killable = opp.board
                     .Where(t => t.RemainingDefense <= a.CurrentAttack)
                     .OrderByDescending(t => t.CurrentAttack).FirstOrDefault();
-                if (killable != null) g.Attack(a, killable);
+                if (killable != null) { g.Attack(a, killable); continue; }
+
+                // 守護がいると本体に行けない → 守護を殴って削る
+                var guardTarget = opp.board.FirstOrDefault(t => t.definition.guard && t.RemainingDefense > 0);
+                if (guardTarget != null) g.Attack(a, guardTarget);
                 else g.Attack(a, null); // 直接攻撃
             }
         }

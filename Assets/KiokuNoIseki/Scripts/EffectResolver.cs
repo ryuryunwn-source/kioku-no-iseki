@@ -154,9 +154,28 @@ namespace KiokuNoIseki
                     break;
 
                 case EffectId.SacrificeForRubble:
+                    break; // 廃止（未使用）
+
+                case EffectId.SacrificeForBurn:
                 {
-                    var t = self.hand.OrderBy(c => c.definition.cost).FirstOrDefault();
-                    if (t != null) { self.hand.Remove(t); self.AddRubble(mag); Log(g, $"「{t.definition.trueName}」を捧げ瓦礫{mag}個。"); }
+                    var sac = self.hand.OrderBy(c => c.definition.cost).FirstOrDefault();
+                    if (sac != null) { self.hand.Remove(sac); Log(g, $"「{sac.definition.trueName}」を代償に捧げた（除外）。"); }
+                    var t = opp.board.OrderBy(c => c.RemainingDefense).FirstOrDefault();
+                    if (t != null) { t.damageTaken += mag; Log(g, $"{t.definition.trueName} に{mag}ダメージ。"); g.ResolveDestruction(opp, t, self); }
+                    else { opp.hp -= mag; Log(g, $"相手に{mag}ダメージ。"); }
+                    break;
+                }
+
+                case EffectId.DrawCard:
+                {
+                    int drawn = 0;
+                    for (int i = 0; i < mag; i++)
+                    {
+                        var c = g.deck.DrawTop();
+                        if (c == null) break;
+                        c.turnsInHand = 0; self.hand.Add(c); drawn++;
+                    }
+                    Log(g, $"遺構デッキから{drawn}枚発掘。");
                     break;
                 }
                 case EffectId.ScryReorder:

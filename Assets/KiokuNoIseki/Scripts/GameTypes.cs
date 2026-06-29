@@ -35,7 +35,9 @@ namespace KiokuNoIseki
         DestroyEnemyGuardian,       // 相手の守護者1体を破壊（自動対象=攻撃力最大、転生処理）
         EngraveAlly,                // 自分の守護者1体に刻印+1（自動対象=攻撃力最大）
         ExtraExcavate,             // 追加1枚発掘（このターン手札上限-1）
-        SacrificeForRubble,         // 手札1枚を捧げ瓦礫mag個（自動対象=最もコストが低い手札）
+        SacrificeForRubble,         // (廃止予定・未使用) 旧:手札1枚を捧げ瓦礫mag個
+        SacrificeForBurn,           // 手札1枚(最安)を代償に捧げ、相手の防御最小の守護者か本体にmagダメージ
+        DrawCard,                   // 遺構デッキからmag枚発掘する
         ScryReorder,                // 遺構デッキ上mag枚を見て並べ替え（AIは現状維持・人間も自動）
         DigSelectNext,              // 次の発掘で上3枚から1枚選択（自動=最もコストが高いカード）
         ResetWeathering,            // 手札1枚の風化を0に（自動=最も風化が進んだ手札）
@@ -52,6 +54,7 @@ namespace KiokuNoIseki
         public int cost;
         public int attack;
         public int defense;
+        public bool guard;          // 守護：場にいる間、相手は本体(HP)を直接攻撃できない
         public string effectText;
 
         // 守護者の技
@@ -142,13 +145,13 @@ namespace KiokuNoIseki
         public bool HasShrineAltar;     // 記憶の祭壇：刻む上昇量+1
         public bool HasSanctuary;       // 忘れられし聖堂：風化猶予+1ターン
         public bool HasNameLantern;     // 真名の灯篭：詠唱コスト-1
-        public bool HasRubbleFort;      // 瓦礫の砦：瓦礫獲得+1
+        public bool HasFortThorn;       // 瓦礫の砦：自分の守護者が破壊されるたび相手に1ダメージ
 
         bool HasCornerstone(EffectId e) => false;
 
         public void RecountCornerstonePassives()
         {
-            HasShrineAltar = HasSanctuary = HasNameLantern = HasRubbleFort = false;
+            HasShrineAltar = HasSanctuary = HasNameLantern = HasFortThorn = false;
             foreach (var c in cornerstones)
             {
                 switch (c.definition.id)
@@ -156,7 +159,7 @@ namespace KiokuNoIseki
                     case "cs_altar": HasShrineAltar = true; break;
                     case "cs_cathedral": HasSanctuary = true; break;
                     case "cs_lantern": HasNameLantern = true; break;
-                    case "cs_fort": HasRubbleFort = true; break;
+                    case "cs_fort": HasFortThorn = true; break;
                 }
             }
         }
@@ -164,7 +167,6 @@ namespace KiokuNoIseki
         public void AddRubble(int amount)
         {
             if (amount <= 0) return;
-            if (HasRubbleFort) amount += 1;
             rubbleTokens += amount;
         }
     }

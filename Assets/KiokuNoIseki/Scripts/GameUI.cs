@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -77,12 +78,17 @@ namespace KiokuNoIseki
 ・想起術：使い切りの呪文。使用後は遺構デッキの一番下へ。
 ・礎石：場に残る永続効果カード。
 
+■ 守護
+・一部の守護者は「守護」を持つ。相手の場に守護がいる間は、その本体(HP)を直接攻撃できない。
+・本体を狙うには先に守護を全部倒す（守護以外の守護者は普通に殴れる）。
+・守護は除去や全体ダメージで処理できる。出した直後（召喚酔い中）でも守護は機能する。
+
 ■ 技の発動（タップ）
 ・自分の行動フェイズに、自分の守護者をタップ→『技』ボタンで発動。
 ・詠唱コストをゲージから支払う。1体につき1ターン1回まで。
 
 ■ 風化
-・3ターン以上手札に残るとカウンターが増え、3で消滅して瓦礫1個になる
+・3ターン以上手札に残るとカウンターが増え、3で消滅する
   （消滅したカードはゲームから完全に除外）。
 
 ■ 転生（共有デッキの肝）
@@ -226,7 +232,7 @@ namespace KiokuNoIseki
             DrawBoardRow(me.board, y: -238, owner: me, isOpponent: false);
 
             // 下部：手番プレイヤー情報
-            MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   記憶領域 {me.memoryZone.Count}   瓦礫 {me.rubbleTokens}",
+            MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   記憶領域 {me.memoryZone.Count}",
                 new Vector2(20, 290), new Vector2(800, 28), 20, TextAnchor.MiddleLeft, Color.white, fromBottom:true);
 
             // 手札
@@ -531,9 +537,19 @@ namespace KiokuNoIseki
                         { engine.Attack(g, null); selectedAttacker = null; AfterHumanAction(); }
                         else { mode = Mode.SelectAttackTarget; Redraw(); }
                     });
-                    var fBtn = MakeButton(root, "本体を直接攻撃", new Vector2(bx, 172),
-                        new Vector2(200, 40), new Color(0.6f,0.45f,0.3f), fromBottom:true, anchorRight:true);
-                    fBtn.onClick.AddListener(() => { engine.Attack(g, null); selectedAttacker = null; AfterHumanAction(); });
+                    bool foeHasGuard = foe.board.Any(c => c.definition.guard && c.RemainingDefense > 0);
+                    if (!foeHasGuard)
+                    {
+                        var fBtn = MakeButton(root, "本体を直接攻撃", new Vector2(bx, 172),
+                            new Vector2(200, 40), new Color(0.6f,0.45f,0.3f), fromBottom:true, anchorRight:true);
+                        fBtn.onClick.AddListener(() => { engine.Attack(g, null); selectedAttacker = null; AfterHumanAction(); });
+                    }
+                    else
+                    {
+                        MakeLabel(root, "守護がいるため本体を攻撃できない", new Vector2(-20, 172),
+                            new Vector2(260, 40), 13, TextAnchor.MiddleRight, new Color(0.85f,0.72f,0.5f),
+                            fromBottom:true, anchorRight:true);
+                    }
                 }
             }
 
@@ -813,6 +829,16 @@ namespace KiokuNoIseki
             nrt.anchorMin = new Vector2(0.31f,0.46f); nrt.anchorMax = new Vector2(0.71f,0.51f);
             nrt.offsetMin = Vector2.zero; nrt.offsetMax = Vector2.zero;
             Shade(nameT);
+
+            // 守護バッジ（イラスト窓の上部）
+            if (def.guard)
+            {
+                var gT = MakeChildText(go.transform, "守護", 10, TextAnchor.MiddleCenter, new Color(0.62f,0.86f,1f));
+                var gr = gT.rectTransform;
+                gr.anchorMin = new Vector2(0.30f,0.83f); gr.anchorMax = new Vector2(0.70f,0.895f);
+                gr.offsetMin = Vector2.zero; gr.offsetMax = Vector2.zero;
+                Shade(gT);
+            }
 
             // 技/種別テキスト（最下部パネル）
             string sub = isGuardian ? def.techniqueName

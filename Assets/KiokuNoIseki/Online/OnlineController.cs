@@ -333,7 +333,7 @@ namespace KiokuNoIseki.Online
             }
 
             // 自分情報（下）
-            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}   瓦礫 {v.me.rubble}",
+            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}",
                 -250, -210, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             DrawHand(v.me.hand, v.me.gauge, myTurn);
@@ -478,8 +478,17 @@ namespace KiokuNoIseki.Online
             else if (pmode == PMode.AttackTarget)
             {
                 MakeText(root, "▶ 攻撃する相手の守護者を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
-                var face = MakeButton("本体を直接攻撃", 300, -250, 200, 40, new Color(0.6f, 0.45f, 0.3f));
-                face.onClick.AddListener(() => Submit(NetActionType.Attack, selectedIid, 0));
+                bool foeGuard = false;
+                foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) { foeGuard = true; break; } }
+                if (!foeGuard)
+                {
+                    var face = MakeButton("本体を直接攻撃", 300, -250, 200, 40, new Color(0.6f, 0.45f, 0.3f));
+                    face.onClick.AddListener(() => Submit(NetActionType.Attack, selectedIid, 0));
+                }
+                else
+                {
+                    MakeText(root, "守護がいるため本体を攻撃不可", 280, -250, 240, 30, 16, TextAnchor.MiddleCenter, new Color(0.85f, 0.72f, 0.5f));
+                }
                 var cancel = MakeButton("やめる", 470, -250, 120, 40, new Color(0.4f, 0.4f, 0.4f));
                 cancel.onClick.AddListener(() => { pmode = PMode.Normal; RedrawPlay(); });
             }
@@ -594,6 +603,9 @@ namespace KiokuNoIseki.Online
 
             // 名前バナー
             PlaceRange(def.trueName, new Vector2(0.31f,0.46f), new Vector2(0.71f,0.51f), 10, new Color(0.97f,0.92f,0.80f), true);
+            // 守護バッジ
+            if (def.guard)
+                PlaceRange("守護", new Vector2(0.30f,0.83f), new Vector2(0.70f,0.895f), 10, new Color(0.62f,0.86f,1f), true);
             // 技/種別（下部パネル）
             string sub = def.kind == CardKind.Guardian ? def.techniqueName : def.kind == CardKind.Recollection ? "想起術" : "礎石";
             PlaceRange(sub, new Vector2(0.12f,0.05f), new Vector2(0.88f,0.17f), 10, new Color(0.95f,0.89f,0.75f), true);
