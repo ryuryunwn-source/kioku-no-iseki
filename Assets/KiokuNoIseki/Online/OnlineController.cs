@@ -289,6 +289,8 @@ namespace KiokuNoIseki.Online
 
             var bg = MakePanel(new Color(0.10f, 0.10f, 0.13f, 1f));
             Stretch(bg.rectTransform);
+            var battleBg = Resources.Load<Sprite>("Backgrounds/battle_bg");
+            if (battleBg != null) { bg.sprite = battleBg; bg.color = new Color(0.42f, 0.42f, 0.48f); bg.preserveAspect = false; }
 
             var v = net != null ? net.LatestView : null;
             if (v == null)

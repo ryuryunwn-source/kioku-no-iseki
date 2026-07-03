@@ -163,9 +163,11 @@ namespace KiokuNoIseki
             cgo.AddComponent<GraphicRaycaster>();
             root = cgo.transform;
 
-            // 背景
+            // 背景（battle_bg があれば画像、無ければ無地）。UI視認性のため暗めに敷く。
             var bg = MakePanel(root, new Color(0.10f, 0.10f, 0.13f), "BG");
             Stretch(bg.rectTransform);
+            var battleBg = Resources.Load<Sprite>("Backgrounds/battle_bg");
+            if (battleBg != null) { bg.sprite = battleBg; bg.color = new Color(0.42f, 0.42f, 0.48f); bg.preserveAspect = false; }
         }
 
         // ───────── 再描画（イミディエイト方式：毎回作り直す） ─────────
