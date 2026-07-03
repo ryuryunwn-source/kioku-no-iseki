@@ -617,8 +617,18 @@ namespace KiokuNoIseki
             Redraw();
         }
 
+        static TitleView s_titlePrefab; static bool s_titlePrefabLoaded;
+        TitleView GetTitlePrefab()
+        {
+            if (!s_titlePrefabLoaded) { s_titlePrefab = Resources.Load<TitleView>("Title"); s_titlePrefabLoaded = true; }
+            return s_titlePrefab;
+        }
+
         void DrawTitle()
         {
+            var titlePrefab = GetTitlePrefab();
+            if (titlePrefab != null) { DrawTitleFromPrefab(titlePrefab); return; }
+
             var titleT = MakeChildText(root, "記憶の遺跡", 60, TextAnchor.MiddleCenter, Color.white);
             var trt = titleT.rectTransform;
             trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 0.5f);
@@ -640,6 +650,20 @@ namespace KiokuNoIseki
             });
             var b4 = MakeCenterButton("ルールを見る", new Vector2(0, -164), new Vector2(340, 56), new Color(0.40f, 0.40f, 0.48f));
             b4.onClick.AddListener(() => { showRules = true; Redraw(); });
+        }
+
+        void DrawTitleFromPrefab(TitleView prefab)
+        {
+            var tv = Object.Instantiate(prefab, root);
+            tv.ApplyFont(jpFont);
+            if (tv.aiButton != null) tv.aiButton.onClick.AddListener(() => StartGame(true));
+            if (tv.localButton != null) tv.localButton.onClick.AddListener(() => StartGame(false));
+            if (tv.onlineButton != null) tv.onlineButton.onClick.AddListener(() =>
+            {
+                if (LaunchOnline != null) LaunchOnline.Invoke();
+                else AddLog("オンライン機能が読み込まれていません（パッケージ/コンパイルを確認）。");
+            });
+            if (tv.rulesButton != null) tv.rulesButton.onClick.AddListener(() => { showRules = true; Redraw(); });
         }
 
         void DrawPassScreen()
@@ -780,6 +804,44 @@ namespace KiokuNoIseki
             return s_frame;
         }
 
+        // カードプレハブ（Assets/Resources/Card.prefab）。あればプレハブ方式、無ければ旧コード生成にフォールバック
+        static CardView s_cardPrefab; static bool s_cardPrefabLoaded;
+        CardView GetCardPrefab()
+        {
+            if (!s_cardPrefabLoaded) { s_cardPrefab = Resources.Load<CardView>("Card"); s_cardPrefabLoaded = true; }
+            return s_cardPrefab;
+        }
+
+        Button MakeCardFromPrefab(CardView prefab, Transform parent, CardInstance c, CardData def,
+            bool isGuardian, Color edge, Vector2 pos, bool fromTop, bool fromBottom)
+        {
+            var cv = Object.Instantiate(prefab, parent);
+            var rt = cv.GetComponent<RectTransform>();
+            SetAnchor(rt, pos, rt.sizeDelta, fromTop, fromBottom, false); // 大きさはプレハブ準拠
+
+            string sub = isGuardian ? def.techniqueName
+                       : def.kind == CardKind.Recollection ? "想起術" : "礎石";
+            string flags = isGuardian
+                ? ((c.engravingCount > 0 ? $"刻{c.engravingCount} " : "") + (c.summoningSick ? "酔" : ""))
+                : "";
+
+            cv.Bind(jpFont, GetFrameSprite(), GetCardArt(def, edge),
+                def.trueName, def.cost.ToString(), isGuardian,
+                ElementName(def.element), c.CurrentAttack.ToString(), c.RemainingDefense.ToString(),
+                sub, flags, def.guard);
+
+            var go = cv.gameObject;
+            var trig = go.AddComponent<EventTrigger>();
+            var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enter.callback.AddListener((_) => ShowCardDetail(c));
+            trig.triggers.Add(enter);
+            var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exit.callback.AddListener((_) => { if (selectedAttacker != null) ShowCardDetail(selectedAttacker); else HideCardDetail(); });
+            trig.triggers.Add(exit);
+
+            return cv.button;
+        }
+
         Button MakeCard(Transform parent, CardInstance c, Vector2 pos, bool fromTop=false, bool fromBottom=false)
         {
             var def = c.definition;
@@ -787,6 +849,11 @@ namespace KiokuNoIseki
             Color edge = isGuardian ? ElementColor[def.element]
                        : def.kind == CardKind.Recollection ? new Color(0.5f,0.5f,0.55f)
                        : new Color(0.6f,0.52f,0.38f);
+
+            // プレハブがあればそちらで描画（エディタで調整可能）
+            var cardPrefab = GetCardPrefab();
+            if (cardPrefab != null)
+                return MakeCardFromPrefab(cardPrefab, parent, c, def, isGuardian, edge, pos, fromTop, fromBottom);
 
             // 一点アンカー配置の小ヘルパー
             void PlaceAt(RectTransform rt, Vector2 a, Vector2 sz)
@@ -830,12 +897,18 @@ namespace KiokuNoIseki
             nrt.offsetMin = Vector2.zero; nrt.offsetMax = Vector2.zero;
             Shade(nameT);
 
-            // 守護バッジ（イラスト窓の上部）
+            // 守護バッジ（イラスト窓の左上・暗い下地付きで必ず読める）
             if (def.guard)
             {
-                var gT = MakeChildText(go.transform, "守護", 10, TextAnchor.MiddleCenter, new Color(0.62f,0.86f,1f));
+                var bg = new GameObject("GuardBadge"); bg.transform.SetParent(go.transform, false);
+                var bgImg = bg.AddComponent<Image>(); bgImg.color = new Color(0.05f,0.09f,0.16f,0.88f); bgImg.raycastTarget = false;
+                var br = bgImg.rectTransform;
+                br.anchorMin = new Vector2(0.17f,0.795f); br.anchorMax = new Vector2(0.47f,0.875f);
+                br.offsetMin = Vector2.zero; br.offsetMax = Vector2.zero;
+                var bo = bg.AddComponent<Outline>(); bo.effectColor = new Color(0.45f,0.75f,1f,0.95f); bo.effectDistance = new Vector2(1f,-1f);
+                var gT = MakeChildText(go.transform, "守護", 11, TextAnchor.MiddleCenter, new Color(0.78f,0.93f,1f));
                 var gr = gT.rectTransform;
-                gr.anchorMin = new Vector2(0.30f,0.83f); gr.anchorMax = new Vector2(0.70f,0.895f);
+                gr.anchorMin = new Vector2(0.17f,0.795f); gr.anchorMax = new Vector2(0.47f,0.875f);
                 gr.offsetMin = Vector2.zero; gr.offsetMax = Vector2.zero;
                 Shade(gT);
             }

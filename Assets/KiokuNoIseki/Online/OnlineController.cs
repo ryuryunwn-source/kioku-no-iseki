@@ -530,6 +530,12 @@ namespace KiokuNoIseki.Online
             if (!s_frameLoaded) { s_frame = Resources.Load<Sprite>("Frames/frame_base"); s_frameLoaded = true; }
             return s_frame;
         }
+        static KiokuNoIseki.CardView s_cardPrefab; static bool s_cardPrefabLoaded;
+        static KiokuNoIseki.CardView GetCardPrefab()
+        {
+            if (!s_cardPrefabLoaded) { s_cardPrefab = Resources.Load<KiokuNoIseki.CardView>("Card"); s_cardPrefabLoaded = true; }
+            return s_cardPrefab;
+        }
         static Sprite GetArt(CardData def)
         {
             if (def == null) return null;
@@ -550,6 +556,11 @@ namespace KiokuNoIseki.Online
         Button MakeCardButton(CardView cv, float cx, float cy)
         {
             var def = cv.faceDown ? null : Def(cv.cardId);
+
+            // 通常カードはプレハブから生成（レイアウトはエディタで調整可能）
+            var prefab = GetCardPrefab();
+            if (prefab != null && !cv.faceDown && def != null)
+                return MakeCardButtonFromPrefab(prefab, cv, def, cx, cy);
 
             var go = new GameObject("Card");
             go.transform.SetParent(root, false);
@@ -603,9 +614,17 @@ namespace KiokuNoIseki.Online
 
             // 名前バナー
             PlaceRange(def.trueName, new Vector2(0.31f,0.46f), new Vector2(0.71f,0.51f), 10, new Color(0.97f,0.92f,0.80f), true);
-            // 守護バッジ
+            // 守護バッジ（暗い下地付きで必ず読める）
             if (def.guard)
-                PlaceRange("守護", new Vector2(0.30f,0.83f), new Vector2(0.70f,0.895f), 10, new Color(0.62f,0.86f,1f), true);
+            {
+                var bg = new GameObject("GuardBadge"); bg.transform.SetParent(go.transform, false);
+                var bgImg = bg.AddComponent<Image>(); bgImg.color = new Color(0.05f,0.09f,0.16f,0.88f); bgImg.raycastTarget = false;
+                var br = bgImg.rectTransform;
+                br.anchorMin = new Vector2(0.17f,0.795f); br.anchorMax = new Vector2(0.47f,0.875f);
+                br.offsetMin = Vector2.zero; br.offsetMax = Vector2.zero;
+                var bo = bg.AddComponent<UnityEngine.UI.Outline>(); bo.effectColor = new Color(0.45f,0.75f,1f,0.95f); bo.effectDistance = new Vector2(1f,-1f);
+                PlaceRange("守護", new Vector2(0.17f,0.795f), new Vector2(0.47f,0.875f), 11, new Color(0.78f,0.93f,1f), true);
+            }
             // 技/種別（下部パネル）
             string sub = def.kind == CardKind.Guardian ? def.techniqueName : def.kind == CardKind.Recollection ? "想起術" : "礎石";
             PlaceRange(sub, new Vector2(0.12f,0.05f), new Vector2(0.88f,0.17f), 10, new Color(0.95f,0.89f,0.75f), true);
@@ -638,6 +657,38 @@ namespace KiokuNoIseki.Online
             trig.triggers.Add(exit);
 
             return btn;
+        }
+
+        // プレハブ版：通常カード（表向き）をInstantiate+Bindで描画。
+        Button MakeCardButtonFromPrefab(KiokuNoIseki.CardView prefab, CardView cv, CardData def, float cx, float cy)
+        {
+            var view = Object.Instantiate(prefab, root);
+            var rt = view.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(cx, cy); // 大きさはプレハブ準拠
+
+            bool isGuardian = def.kind == CardKind.Guardian;
+            string sub = isGuardian ? def.techniqueName : def.kind == CardKind.Recollection ? "想起術" : "礎石";
+            string flags = isGuardian ? ((cv.engraving > 0 ? $"刻{cv.engraving} " : "") + (cv.sick ? "酔" : "")) : "";
+            view.Bind(jpFont, GetFrame(), GetArt(def), def.trueName, def.cost.ToString(), isGuardian,
+                ElemName(def.element), cv.atk.ToString(), cv.def.ToString(), sub, flags, def.guard);
+
+            // ホバーでスキル詳細を表示
+            var trig = view.gameObject.AddComponent<EventTrigger>();
+            var cvc = cv;
+            var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enter.callback.AddListener((_) => ShowDetail(cvc));
+            trig.triggers.Add(enter);
+            var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exit.callback.AddListener((_) =>
+            {
+                var lv = net != null ? net.LatestView : null;
+                if (selectedIid != 0 && lv != null) { var s = FindCard(lv, selectedIid); if (s != null) { ShowDetail(s); return; } }
+                HideDetail();
+            });
+            trig.triggers.Add(exit);
+
+            return view.button;
         }
 
         void MakeBack(float cx, float cy, float w, float h)
