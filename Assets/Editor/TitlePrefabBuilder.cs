@@ -22,6 +22,18 @@ public static class TitlePrefabBuilder
         rrt.offsetMin = Vector2.zero; rrt.offsetMax = Vector2.zero;
         var tv = root.AddComponent<TitleView>();
 
+        // 背景（全画面ストレッチ・最背面）。スプライトがあれば設定、無ければ暗色。
+        var bgGo = new GameObject("Background", typeof(RectTransform));
+        bgGo.transform.SetParent(root.transform, false);
+        var bg = bgGo.AddComponent<Image>();
+        bg.raycastTarget = false; bg.preserveAspect = false;
+        var bgrt = bg.rectTransform;
+        bgrt.anchorMin = Vector2.zero; bgrt.anchorMax = Vector2.one;
+        bgrt.offsetMin = Vector2.zero; bgrt.offsetMax = Vector2.zero;
+        var bgSprite = Resources.Load<Sprite>("Backgrounds/title_bg");
+        if (bgSprite != null) { bg.sprite = bgSprite; bg.color = Color.white; }
+        else bg.color = new Color(0.06f, 0.06f, 0.10f, 1f);
+
         // ロゴ画像（任意）：初期は非表示。エディタでスプライトを入れて有効化して使う。
         var logoGo = new GameObject("Logo", typeof(RectTransform));
         logoGo.transform.SetParent(root.transform, false);
@@ -45,7 +57,7 @@ public static class TitlePrefabBuilder
         var b4 = MakeButton(root, "ルールを見る", font, new Vector2(0, -164), new Vector2(340, 56), new Color(0.40f, 0.40f, 0.48f));
 
         // 参照割り当て
-        tv.logo = logo; tv.titleText = titleT; tv.subText = subT;
+        tv.background = bg; tv.logo = logo; tv.titleText = titleT; tv.subText = subT;
         tv.aiButton = b1; tv.localButton = b2; tv.onlineButton = b3; tv.rulesButton = b4;
 
         // 保存

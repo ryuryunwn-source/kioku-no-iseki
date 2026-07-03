@@ -8,7 +8,7 @@ public class CardArtImporter : AssetPostprocessor
     void OnPreprocessTexture()
     {
         string p = assetPath.Replace("\\", "/");
-        if (!p.Contains("/Resources/CardArt/") && !p.Contains("/Resources/Frames/")) return;
+        if (!p.Contains("/Resources/CardArt/") && !p.Contains("/Resources/Frames/") && !p.Contains("/Resources/Backgrounds/")) return;
 
         var ti = (TextureImporter)assetImporter;
         ti.textureType = TextureImporterType.Sprite;

@@ -656,6 +656,7 @@ namespace KiokuNoIseki
         {
             var tv = Object.Instantiate(prefab, root);
             tv.ApplyFont(jpFont);
+            tv.ApplyBackground(Resources.Load<Sprite>("Backgrounds/title_bg"));
             if (tv.aiButton != null) tv.aiButton.onClick.AddListener(() => StartGame(true));
             if (tv.localButton != null) tv.localButton.onClick.AddListener(() => StartGame(false));
             if (tv.onlineButton != null) tv.onlineButton.onClick.AddListener(() =>
