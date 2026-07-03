@@ -233,9 +233,9 @@ namespace KiokuNoIseki
             DrawBoardRow(foe.board, y: -46, owner: foe, isOpponent: true);
             DrawBoardRow(me.board, y: -238, owner: me, isOpponent: false);
 
-            // 下部：手番プレイヤー情報
+            // 下部：手番プレイヤー情報（自分の盤面カードと重ならないよう手札寄りに配置）
             MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   記憶領域 {me.memoryZone.Count}",
-                new Vector2(20, 290), new Vector2(800, 28), 20, TextAnchor.MiddleLeft, Color.white, fromBottom:true);
+                new Vector2(20, 250), new Vector2(800, 28), 20, TextAnchor.MiddleLeft, Color.white, fromBottom:true);
 
             // 手札
             DrawHand(me, interactable: MyActiveTurn);
