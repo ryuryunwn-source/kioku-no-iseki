@@ -42,13 +42,15 @@ public static class TitlePrefabBuilder
         Center(logo.rectTransform, new Vector2(0, 190), new Vector2(520, 200));
         logoGo.SetActive(false);
 
-        // タイトル文字
+        // タイトル文字（黒縁取りで背景から浮かせる）
         var titleT = MakeText(root, "Title", font, 60, Color.white, "記憶の遺跡");
         Center(titleT.rectTransform, new Vector2(0, 190), new Vector2(800, 90));
+        AddOutline(titleT.gameObject, new Color(0, 0, 0, 0.95f), new Vector2(2.5f, -2.5f));
 
-        // サブタイトル
-        var subT = MakeText(root, "Sub", font, 22, new Color(0.7f, 0.7f, 0.75f), "― Kioku no Iseki ―");
+        // サブタイトル（黒縁取り）
+        var subT = MakeText(root, "Sub", font, 22, new Color(0.85f, 0.85f, 0.9f), "― Kioku no Iseki ―");
         Center(subT.rectTransform, new Vector2(0, 138), new Vector2(800, 40));
+        AddOutline(subT.gameObject, new Color(0, 0, 0, 0.95f), new Vector2(1.5f, -1.5f));
 
         // ボタン群
         var b1 = MakeButton(root, "AIと対戦", font, new Vector2(0, 40), new Vector2(340, 60), new Color(0.30f, 0.40f, 0.55f));
@@ -68,6 +70,12 @@ public static class TitlePrefabBuilder
         Selection.activeObject = prefab;
         EditorGUIUtility.PingObject(prefab);
         Debug.Log($"[TitlePrefabBuilder] 生成: {OutPath}");
+    }
+
+    static void AddOutline(GameObject go, Color c, Vector2 dist)
+    {
+        var o = go.AddComponent<Outline>();
+        o.effectColor = c; o.effectDistance = dist;
     }
 
     static void Center(RectTransform rt, Vector2 pos, Vector2 size)
