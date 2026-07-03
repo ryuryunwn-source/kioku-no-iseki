@@ -304,12 +304,35 @@ namespace KiokuNoIseki.Online
             bool myTurn = v.myTurn && v.result == 0;
 
             // 相手情報（上）
-            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   記憶 {v.foe.memoryCount}",
+            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   記憶 {v.foe.memoryCount}   盟約 {v.foe.pactCount}/3",
                 -250, 320, 760, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             // 山札（裏面＋残数）
             MakeBack(480, 292, 30, 44);
             MakeText(root, $"山札 {v.deckCount}", 480, 256, 130, 24, 14, TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.6f));
+            // 次の発掘（デッキトップ公開＝共有デッキの駆け引きの中心）
+            if (!string.IsNullOrEmpty(v.deckTopId))
+            {
+                var topDef = Def(v.deckTopId);
+                if (topDef != null)
+                {
+                    string topEng = v.deckTopEng > 0 ? $"（刻{v.deckTopEng}）" : "";
+                    var topT = MakeText(root, $"次▶「{topDef.trueName}」{topEng}",
+                        455, 230, 220, 22, 13, TextAnchor.MiddleCenter, new Color(0.98f, 0.88f, 0.55f));
+                    var to = topT.gameObject.AddComponent<UnityEngine.UI.Outline>();
+                    to.effectColor = new Color(0, 0, 0, 0.9f); to.effectDistance = new Vector2(1.2f, -1.2f);
+                }
+            }
+            // 盟約リーチ警告（どちらかが完全刻印2体＝あと1体で勝利）
+            if (v.result == 0 && (v.me.pactCount >= 2 || v.foe.pactCount >= 2))
+            {
+                string who = v.foe.pactCount >= v.me.pactCount ? v.foe.name : v.me.name;
+                int max = Mathf.Max(v.me.pactCount, v.foe.pactCount);
+                var warnT = MakeText(root, $"⚠ 古き盟約：{who} はあと {3 - max} 体で勝利",
+                    0, 228, 620, 26, 18, TextAnchor.MiddleCenter, new Color(1f, 0.45f, 0.35f));
+                var wo = warnT.gameObject.AddComponent<UnityEngine.UI.Outline>();
+                wo.effectColor = new Color(0, 0, 0, 0.9f); wo.effectDistance = new Vector2(1.2f, -1.2f);
+            }
 
             // 相手の手札（伏せ札の列）
             int fhand = v.foe.hand != null ? v.foe.hand.Length : 0;
@@ -335,7 +358,7 @@ namespace KiokuNoIseki.Online
             }
 
             // 自分情報（下）
-            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}",
+            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}   盟約 {v.me.pactCount}/3",
                 -250, -210, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             DrawHand(v.me.hand, v.me.gauge, myTurn);

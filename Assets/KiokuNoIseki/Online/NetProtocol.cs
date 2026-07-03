@@ -28,6 +28,7 @@ namespace KiokuNoIseki.Online
         public int gauge;
         public int gaugeMax;
         public int memoryCount;
+        public int pactCount;   // 完全刻印(刻印3)が記憶領域に何体か（盟約進捗・公開情報）
         public int rubble;
         public CardView[] hand = Array.Empty<CardView>();
         public CardView[] board = Array.Empty<CardView>();
@@ -39,7 +40,9 @@ namespace KiokuNoIseki.Online
     {
         public PlayerView me;   // 受信者自身（手札は表）
         public PlayerView foe;  // 相手（手札は裏向き）
-        public int deckCount;   // 遺構デッキ残数のみ
+        public int deckCount;   // 遺構デッキ残数
+        public string deckTopId = "";  // デッキトップの定義ID（公開情報。空=デッキ切れ）
+        public int deckTopEng;         // デッキトップの刻印数
         public int phase;       // TurnPhase
         public bool myTurn;     // 受信者の手番か
         public int result;      // 0=継続 / 1=自分の勝ち / 2=相手の勝ち
