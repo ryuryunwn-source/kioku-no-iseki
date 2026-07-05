@@ -199,7 +199,7 @@ namespace KiokuNoIseki.Online
                 gauge = p.recallGauge,
                 gaugeMax = p.recallGaugeMax,
                 memoryCount = p.memoryZone.Count,
-                pactCount = p.memoryZone.Count(c => c.engravingCount >= 3),
+                pactCount = p.memoryZone.Count(c => c.engravingCount >= GameEngine.PactEngraving),
                 rubble = p.rubbleTokens,
                 hand = p.hand.Select(c => CV(c, faceDown: !ownHand)).ToArray(),
                 board = p.board.Select(c => CV(c, false)).ToArray(),

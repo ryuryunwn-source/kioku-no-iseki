@@ -56,8 +56,10 @@ namespace KiokuNoIseki
 
 ■ 目的（勝利条件）
 ・相手のHPを0にする（通常勝利）
-・完全刻印(刻印3)の守護者を記憶領域に3体集める（古き盟約勝利）
-　※盟約の進捗は両者に公開。2体に達すると警告が表示される（リーチ）。
+・完全刻印の守護者を記憶領域に2体集める（古き盟約勝利）
+　守護者を盤面で守り抜くと生存刻印が貯まり、完全刻印(刻印4)で
+　破壊されると自分の記憶領域へ。守護で守る戦略が第2の勝ち筋に。
+　※盟約の進捗は両者に公開。あと1体でリーチ警告が出る。
 ・遺構デッキが尽きたとき、記憶領域の枚数が多い方が勝利（枯渇勝利）
 
 ■ 基本
@@ -209,7 +211,7 @@ namespace KiokuNoIseki
             int myPact = PactCount(me), foePact = PactCount(foe);
 
             // 上部：相手情報＋盤面
-            MakeLabel(root, $"{foe.name}   HP {foe.hp}   ゲージ {foe.recallGauge}/{foe.recallGaugeMax}   記憶領域 {foe.memoryZone.Count}   盟約 {foePact}/3",
+            MakeLabel(root, $"{foe.name}   HP {foe.hp}   ゲージ {foe.recallGauge}/{foe.recallGaugeMax}   記憶領域 {foe.memoryZone.Count}   盟約 {foePact}/{GameEngine.PactWinCount}",
                 new Vector2(20, -16), new Vector2(700, 28), 20, TextAnchor.MiddleLeft, Color.white);
             // 山札（裏面スタック＋残数）
             MakeCardBack(root, new Vector2(-150, -44), new Vector2(44, 63), fromTop:true, anchorRight:true);
@@ -225,11 +227,12 @@ namespace KiokuNoIseki
                     new Color(0.98f, 0.88f, 0.55f), anchorRight: true);
                 OutlineText(topT);
             }
-            // 盟約リーチ警告（どちらかが2体到達＝あと1体で勝利）
-            if (ongoing && (myPact >= 2 || foePact >= 2))
+            // 盟約リーチ警告（あと1体で勝利＝妨害判断を迫る）
+            int pactReach = GameEngine.PactWinCount - 1;
+            if (ongoing && (myPact >= pactReach || foePact >= pactReach))
             {
                 string who = foePact >= myPact ? foe.name : me.name;
-                var warnT = MakeLabel(root, $"⚠ 古き盟約：{who} はあと {3 - Mathf.Max(myPact, foePact)} 体で勝利",
+                var warnT = MakeLabel(root, $"⚠ 古き盟約：{who} はあと {GameEngine.PactWinCount - Mathf.Max(myPact, foePact)} 体で勝利",
                     new Vector2(290, -78), new Vector2(700, 30), 20, TextAnchor.MiddleCenter,
                     new Color(1f, 0.45f, 0.35f));
                 OutlineText(warnT);
@@ -258,7 +261,7 @@ namespace KiokuNoIseki
             DrawBoardRow(me.board, y: -238, owner: me, isOpponent: false);
 
             // 下部：手番プレイヤー情報（自分の盤面カードと重ならないよう手札寄りに配置）
-            MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   記憶領域 {me.memoryZone.Count}   盟約 {myPact}/3",
+            MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   記憶領域 {me.memoryZone.Count}   盟約 {myPact}/{GameEngine.PactWinCount}",
                 new Vector2(20, 250), new Vector2(800, 28), 20, TextAnchor.MiddleLeft, Color.white, fromBottom:true);
 
             // 手札
@@ -1134,8 +1137,8 @@ namespace KiokuNoIseki
             return img;
         }
 
-        // 古き盟約の進捗（完全刻印=刻印3の守護者が記憶領域に何体か）
-        static int PactCount(RecallerState p) => p.memoryZone.Count(c => c.engravingCount >= 3);
+        // 古き盟約の進捗（完全刻印の守護者が記憶領域に何体か）
+        static int PactCount(RecallerState p) => p.memoryZone.Count(c => c.engravingCount >= GameEngine.PactEngraving);
 
         // テキストに黒縁取り（背景画像の上でも読めるように）
         static void OutlineText(Text t)

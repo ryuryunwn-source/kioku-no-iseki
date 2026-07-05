@@ -48,6 +48,19 @@ namespace KiokuNoIseki
     // ゲーム全体の進行と行動。Human/AIどちらも GameActions を呼ぶ（17-1）
     public class GameEngine
     {
+        // ── 古き盟約のバランス調整パラメータ（バランスシミュレーターで探索する） ──
+        // 刻印がこの数に達した守護者が破壊されると記憶領域へ（＝完全刻印）。
+        public static int MemoryEntryEngraving = 4;
+        // 記憶領域にこの体数が集まると盟約勝利（バランス調整で3→2）。
+        public static int PactWinCount = 2;
+        // 記憶領域入りしたカードが持つ刻印数（＝盟約カウント対象の閾値）。
+        public static int PactEngraving => MemoryEntryEngraving - 1;
+        // 盤面で1ターン生き延びるごとに得る刻印（自分で狙える成熟経路。守護で守る価値も上がる）。
+        public static int EngraveOnSurvive = 1;
+        // 完全刻印の守護者が破壊されたら記憶領域へ。
+        // true=持ち主の記憶領域（自分で盟約を狙える）／false=破壊した側（従来）。
+        public static bool BankToOwner = true;
+
         public RecallerState[] players = new RecallerState[2];
         public RuinsDeck deck;
         public int currentPlayer;          // 0 or 1
@@ -290,10 +303,10 @@ namespace KiokuNoIseki
                 Log($"{owner.name}の瓦礫の砦：砕けた瓦礫が相手に1ダメージ。");
             }
 
-            DoReincarnate(card, byOpponent);
+            DoReincarnate(card, byOpponent, owner);
         }
 
-        public void DoReincarnate(CardInstance card, RecallerState destroyer)
+        public void DoReincarnate(CardInstance card, RecallerState destroyer, RecallerState owner = null)
         {
             // リセットして刻印+1
             card.damageTaken = 0;
@@ -306,12 +319,14 @@ namespace KiokuNoIseki
             card.techniqueUsedThisTurn = false;
             card.attackedThisTurn = false;
 
-            if (card.engravingCount >= 4 && destroyer != null)
+            // 記憶領域入りの受け手：持ち主 or 破壊側（パラメータで切替）
+            var banker = BankToOwner ? owner : destroyer;
+            if (card.engravingCount >= MemoryEntryEngraving && banker != null)
             {
-                // 刻印3つ蓄積後に再度破壊→破壊側の記憶領域へ（11章 古き盟約用）
-                card.engravingCount = 3;
-                destroyer.memoryZone.Add(card);
-                Log($"「{card.definition.trueName}」(完全刻印) が {destroyer.name} の記憶領域へ。");
+                // 完全刻印に達した後の破壊→記憶領域へ（11章 古き盟約用）
+                card.engravingCount = PactEngraving;
+                banker.memoryZone.Add(card);
+                Log($"「{card.definition.trueName}」(完全刻印) が {banker.name} の記憶領域へ。");
             }
             else
             {
@@ -326,6 +341,12 @@ namespace KiokuNoIseki
             if (result != GameResult.Ongoing) return;
             phase = TurnPhase.End;
             var p = Cur;
+
+            // 生存刻印：盤面で生き延びた守護者が刻印を蓄積する（自分で狙える成熟経路）
+            if (EngraveOnSurvive > 0)
+                foreach (var c in p.board)
+                    if (!c.summoningSick) c.engravingCount += EngraveOnSurvive;
+
             int graceTurns = p.HasSanctuary ? 4 : 3;
             for (int i = p.hand.Count - 1; i >= 0; i--)
             {
@@ -362,11 +383,11 @@ namespace KiokuNoIseki
             // 通常勝利
             if (players[0].hp <= 0) { result = GameResult.Player1Win; return; }
             if (players[1].hp <= 0) { result = GameResult.Player0Win; return; }
-            // 古き盟約勝利：完全刻印(刻印3)が記憶領域に3体
+            // 古き盟約勝利：完全刻印が記憶領域に PactWinCount 体
             for (int i = 0; i < 2; i++)
             {
-                int full = players[i].memoryZone.Count(c => c.engravingCount >= 3);
-                if (full >= 3) { result = i == 0 ? GameResult.Player0Win : GameResult.Player1Win; return; }
+                int full = players[i].memoryZone.Count(c => c.engravingCount >= PactEngraving);
+                if (full >= PactWinCount) { result = i == 0 ? GameResult.Player0Win : GameResult.Player1Win; return; }
             }
         }
     }

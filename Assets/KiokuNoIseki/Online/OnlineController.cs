@@ -304,7 +304,7 @@ namespace KiokuNoIseki.Online
             bool myTurn = v.myTurn && v.result == 0;
 
             // 相手情報（上）
-            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   記憶 {v.foe.memoryCount}   盟約 {v.foe.pactCount}/3",
+            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   記憶 {v.foe.memoryCount}   盟約 {v.foe.pactCount}/{GameEngine.PactWinCount}",
                 -250, 320, 760, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             // 山札（裏面＋残数）
@@ -323,12 +323,13 @@ namespace KiokuNoIseki.Online
                     to.effectColor = new Color(0, 0, 0, 0.9f); to.effectDistance = new Vector2(1.2f, -1.2f);
                 }
             }
-            // 盟約リーチ警告（どちらかが完全刻印2体＝あと1体で勝利）
-            if (v.result == 0 && (v.me.pactCount >= 2 || v.foe.pactCount >= 2))
+            // 盟約リーチ警告（あと1体で勝利＝妨害判断を迫る）
+            int pactReach = GameEngine.PactWinCount - 1;
+            if (v.result == 0 && (v.me.pactCount >= pactReach || v.foe.pactCount >= pactReach))
             {
                 string who = v.foe.pactCount >= v.me.pactCount ? v.foe.name : v.me.name;
                 int max = Mathf.Max(v.me.pactCount, v.foe.pactCount);
-                var warnT = MakeText(root, $"⚠ 古き盟約：{who} はあと {3 - max} 体で勝利",
+                var warnT = MakeText(root, $"⚠ 古き盟約：{who} はあと {GameEngine.PactWinCount - max} 体で勝利",
                     0, 228, 620, 26, 18, TextAnchor.MiddleCenter, new Color(1f, 0.45f, 0.35f));
                 var wo = warnT.gameObject.AddComponent<UnityEngine.UI.Outline>();
                 wo.effectColor = new Color(0, 0, 0, 0.9f); wo.effectDistance = new Vector2(1.2f, -1.2f);
@@ -358,7 +359,7 @@ namespace KiokuNoIseki.Online
             }
 
             // 自分情報（下）
-            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}   盟約 {v.me.pactCount}/3",
+            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}   盟約 {v.me.pactCount}/{GameEngine.PactWinCount}",
                 -250, -210, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             DrawHand(v.me.hand, v.me.gauge, myTurn);

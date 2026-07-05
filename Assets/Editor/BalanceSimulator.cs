@@ -16,6 +16,69 @@ public static class BalanceSimulator
     const int Games = 200;          // 対戦回数
     const int MaxPlayerTurns = 200; // 1試合の手番数上限（無限ループ保険）
 
+    // 盟約パラメータ（破壊回数×必要体数）を総当たりで回し、盟約勝率を比較する。
+    [MenuItem("Kioku/Sweep Pact Balance")]
+    public static void SweepPact()
+    {
+        int origEntry = GameEngine.MemoryEntryEngraving;
+        int origCount = GameEngine.PactWinCount;
+        int origSurv = GameEngine.EngraveOnSurvive;
+        bool origBank = GameEngine.BankToOwner;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("=== 古き盟約 パラメータ探索（各設定で200戦） ===");
+        sb.AppendLine("目標：盟約勝率が5〜10%に乗り、HP勝利が主軸のまま（盟約が現実的な第2の道になる）。");
+        sb.AppendLine("成熟経路：盤面で生き延びた守護者が刻印を蓄積し、完全刻印で死ぬと持ち主の記憶領域へ。");
+        sb.AppendLine();
+        sb.AppendLine("┌生存刻印┬破壊回数┬必要体数┬─盟約勝率─┬─HP勝率─┬─枯渇─┬─リーチ─┬平均T─");
+
+        int[] survs = { 0, 1 };        // 1ターン生存で得る刻印
+        int[] entries = { 3, 4, 5 };   // 完全刻印（記憶領域入り）までの刻印数
+        int[] counts = { 2, 3 };       // 盟約に必要な体数
+        GameEngine.BankToOwner = true; // 自分で狙える経路として持ち主banking
+        foreach (int surv in survs)
+        foreach (int entry in entries)
+        foreach (int count in counts)
+        {
+            GameEngine.EngraveOnSurvive = surv;
+            GameEngine.MemoryEntryEngraving = entry;
+            GameEngine.PactWinCount = count;
+
+            int pact = 0, hp = 0, exhaust = 0, reach = 0, tsum = 0;
+            for (int gi = 0; gi < Games; gi++)
+            {
+                var g = new GameEngine(seed: gi + 1);
+                g.NewGame(true);
+                bool r = false; int safety = 0;
+                while (g.result == GameResult.Ongoing && safety++ < MaxPlayerTurns)
+                {
+                    AIController.TakeTurn(g);
+                    if (PactCount(g.players[0]) >= count - 1 || PactCount(g.players[1]) >= count - 1) r = true;
+                }
+                tsum += g.turnNumber;
+                if (r) reach++;
+                if (g.players[0].hp <= 0 || g.players[1].hp <= 0) hp++;
+                else if (PactCount(g.players[0]) >= count || PactCount(g.players[1]) >= count) pact++;
+                else if (g.deck.Count == 0) exhaust++;
+            }
+            sb.AppendLine($"│  {surv,2}    │  {entry,2}    │  {count,2}体  │  {Pct(pact, Games),6}  │ {Pct(hp, Games),6} │{Pct(exhaust, Games),5} │ {Pct(reach, Games),6} │ {(double)tsum / Games:0.0}");
+        }
+        sb.AppendLine("└────────┴────────┴────────┴──────────┴────────┴──────┴────────┴──────");
+        sb.AppendLine();
+        sb.AppendLine("※ 現行は 生存刻印0・4回・3体＝盟約0%。生存刻印1にすると自分で成熟を狙える。");
+        sb.AppendLine("※ 盟約5〜10%かつHP勝利が主軸(80%以上)を保つ行が理想。");
+
+        GameEngine.MemoryEntryEngraving = origEntry;
+        GameEngine.PactWinCount = origCount;
+        GameEngine.EngraveOnSurvive = origSurv;
+        GameEngine.BankToOwner = origBank;
+
+        string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../PactSweep.txt"));
+        System.IO.File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+        Debug.Log("[BalanceSimulator] 盟約探索完了。\n\n" + sb);
+        EditorUtility.RevealInFinder(path);
+    }
+
     [MenuItem("Kioku/Run Balance Simulation")]
     public static void Run()
     {
@@ -47,7 +110,8 @@ public static class BalanceSimulator
 
                 RecordBoard(g.players[0], seen0, cardName);
                 RecordBoard(g.players[1], seen1, cardName);
-                if (PactCount(g.players[0]) >= 2 || PactCount(g.players[1]) >= 2) reached = true;
+                int reachAt = GameEngine.PactWinCount - 1;
+                if (PactCount(g.players[0]) >= reachAt || PactCount(g.players[1]) >= reachAt) reached = true;
             }
 
             turnCounts.Add(g.turnNumber);
@@ -57,7 +121,7 @@ public static class BalanceSimulator
             string outcome;
             if (g.result == GameResult.Ongoing) { timeouts++; outcome = "timeout"; }
             else if (g.players[0].hp <= 0 || g.players[1].hp <= 0) { hpWins++; outcome = "hp"; }
-            else if (PactCount(g.players[0]) >= 3 || PactCount(g.players[1]) >= 3) { pactWins++; outcome = "pact"; }
+            else if (PactCount(g.players[0]) >= GameEngine.PactWinCount || PactCount(g.players[1]) >= GameEngine.PactWinCount) { pactWins++; outcome = "pact"; }
             else if (g.deck.Count == 0) { exhaustWins++; outcome = "exhaust"; }
             else { timeouts++; outcome = "unknown"; }
 
