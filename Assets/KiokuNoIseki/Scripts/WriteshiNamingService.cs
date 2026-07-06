@@ -7,7 +7,7 @@ using UnityEngine.Networking;
 
 namespace KiokuNoIseki
 {
-    // 写真を見て写し身の「真名」を生成する（15-5）。
+    // 写真を見て写し身の「名前」を生成する（15-5）。
     // 方式：Google Vision でラベル抽出 → Groq(LLM) でカッコいい日本語名を1つ生成。
     // APIキーは Resources/writeshi_api.txt（2行：1行目=Vision, 2行目=Groq）から読む。
     //   → キーをソース/gitに含めないための外部化。ファイルが無ければ即オフライン命名にフォールバックする。
@@ -38,7 +38,7 @@ namespace KiokuNoIseki
             return !string.IsNullOrEmpty(s_visionKey) && !string.IsNullOrEmpty(s_groqKey);
         }
 
-        // 真名を非同期取得。取れれば onDone(name)、取れなければ onDone(null)（呼び出し側でフォールバック）。
+        // 名前を非同期取得。取れれば onDone(name)、取れなければ onDone(null)（呼び出し側でフォールバック）。
         public static IEnumerator RequestTrueName(Texture2D tex, Action<string> onDone)
         {
             EnsureKeys();

@@ -10,7 +10,7 @@ namespace KiokuNoIseki.Online
     // 18章：ホスト権威の対戦同期。NGOの Named Message を使い、NetworkObject/プレハブ無しで実装する。
     //  - 正規の GameEngine はホストだけが保持
     //  - クライアントは操作要求(NetAction)を送るだけ。ホストが検証・実行し、視点ごとのGameViewを配信
-    //  - 相手の手札は裏向き、遺構デッキは残数のみ（隠し情報保護）
+    //  - 相手の手札は裏向き、山札は残数のみ（隠し情報保護）
     public class NetGame
     {
         public static NetGame Instance;
@@ -114,7 +114,7 @@ namespace KiokuNoIseki.Online
             engine.OnLog += s => { hostLog.Add(s); while (hostLog.Count > 8) hostLog.RemoveAt(0); };
             engine.OnStateChanged += BroadcastAll;
 
-            // 両者の写し身を遺構デッキに合流させる（写真はホストには送られていない＝相手のは画像なし）。
+            // 両者の写し身を山札に合流させる（写真はホストには送られていない＝相手のは画像なし）。
             var injected = new List<CardInstance>();
             injected.AddRange(WriteshiCollection.Snapshot());                     // ホスト自身（写真は手元にある）
             foreach (var g in clientWriteshi) injected.Add(new CardInstance(g.ToCardData())); // 参加者（写真なし）

@@ -10,7 +10,7 @@ namespace KiokuNoIseki
     // 実装方針はルールブック18章のとおり「ホスト権威モデル」を採用する：
     //  - 正規の状態（GameEngine）はホスト側のみが保持
     //  - クライアントは ServerRpc で操作要求を送り、ホストが GameEngine の行動メソッドを実行
-    //  - 相手の手札・遺構デッキの内容は非所有クライアントへ送らない（枚数のみ同期）
+    //  - 相手の手札・山札の内容は非所有クライアントへ送らない（枚数のみ同期）
     //
     // GameEngine.PlayCard / Attack / Inscribe / TechniqueActivator.TryActivate を
     // そのままホスト上で呼ぶラッパとして NetworkGameController を実装すればよい設計になっている。

@@ -3,14 +3,56 @@ using System.Collections.Generic;
 
 namespace KiokuNoIseki
 {
-    // 【v2】写し身：写真から動的生成される守護者データ（19章 GeneratedGuardianData）。
+    // 効果ID＋効果量から、固定カードと同じ文体の日本語効果説明を生成する。
+    // 写し身は効果テキストを自動生成するため、これを使って「何ダメージ／何回復」まで明記する。
+    public static class EffectText
+    {
+        public static string Describe(EffectId eff, int mag)
+        {
+            switch (eff)
+            {
+                case EffectId.DamageLowestDefEnemyOrFace:
+                    return $"相手の場で防御力が最も低いユニットに{mag}ダメージ。いなければ相手に{mag}ダメージ。";
+                case EffectId.DamageAllEnemyGuardians:
+                    return $"相手の場のユニット全体に{mag}ダメージ。";
+                case EffectId.DamageEnemyGuardian:
+                    return $"相手のユニット1体に{mag}ダメージ。";
+                case EffectId.SelfDefenseBuffPerm:
+                    return $"自分自身の防御力+{mag}する（永続）。";
+                case EffectId.SelfDefenseBuffTurn:
+                    return $"このターン中、自分自身の防御力+{mag}する。";
+                case EffectId.SelfAttackBuffPerm:
+                    return $"自分自身の攻撃力+{mag}する（永続）。";
+                case EffectId.SelfAttackBuffTurn:
+                    return $"このターン中、自分自身の攻撃力+{mag}する。";
+                case EffectId.HealHP:
+                    return $"自分のHPを{mag}回復する。";
+                case EffectId.GainGauge:
+                    return $"自分のマナを+{mag}する（上限は超えない）。";
+                case EffectId.DrainEnemyGauge:
+                    return $"相手のマナを-{mag}する（最低0）。";
+                case EffectId.BuffAllAllyDefPerm:
+                    return $"自分の場のユニット全体の防御力+{mag}する（永続）。";
+                case EffectId.BuffAllAllyAtkPerm:
+                    return $"自分の場のユニット全体の攻撃力+{mag}する（永続）。";
+                case EffectId.DebuffHighestAtkPerm:
+                    return $"相手の場で攻撃力が最も高いユニットの攻撃力-{mag}する（永続）。";
+                case EffectId.DebuffHighestAtkTurn:
+                    return $"相手の場で攻撃力が最も高いユニットの攻撃力をこのターン中-{mag}する。";
+                default:
+                    return "（特殊効果）";
+            }
+        }
+    }
+
+    // 【v2】写し身：写真から動的生成されるユニットデータ（19章 GeneratedGuardianData）。
     // 固定カード(CardData)とは別に、CardInstance.generated に保持する。
     // 強さ（系統・コスト・攻防・技の効果）はすべて決定論的アルゴリズムで決める（15章）。
     // 名前・技名だけを AI（またはオフライン候補リスト）で与える。同じ写真は常に同じカードになる。
     public class GeneratedGuardianData
     {
         public ulong sourceImageHash;
-        public string trueName;        // 真名（AI生成 or フォールバック）
+        public string trueName;        // 名前（AI生成 or フォールバック）
         public string techniqueName;   // 技のフレーバー名
         public Element element;        // アルゴリズムのみで決定（15-2）
         public int cost;               // アルゴリズムのみで決定（15-3）
@@ -20,8 +62,8 @@ namespace KiokuNoIseki
         public int techniqueMagnitude;
         public int incantationCost;
 
-        // このデータから、既存エンジンがそのまま扱える合成 CardData（守護者）を作る。
-        // これにより写し身は固定守護者と完全に同じルール（風化・転生・刻印・守護）で動く。
+        // このデータから、既存エンジンがそのまま扱える合成 CardData（ユニット）を作る。
+        // これにより写し身は固定ユニットと完全に同じルール（劣化・復帰・強化・守護）で動く。
         public CardData ToCardData()
         {
             return new CardData
@@ -34,7 +76,7 @@ namespace KiokuNoIseki
                 attack = attack,
                 defense = defense,
                 guard = false,
-                effectText = "写し身の守護者。技「" + techniqueName + "」を持つ。",
+                effectText = EffectText.Describe(techniqueEffect, techniqueMagnitude),
                 incantationCost = incantationCost,
                 techniqueName = techniqueName,
                 techniqueEffect = techniqueEffect,
@@ -118,7 +160,7 @@ namespace KiokuNoIseki
             return g;
         }
 
-        // オフライン時の真名候補（カタカナ・発音しやすい）。同じ写真は常に同じ名前になる。
+        // オフライン時の名前候補（カタカナ・発音しやすい）。同じ写真は常に同じ名前になる。
         static readonly string[] NameCandidates =
         {
             "アルガ","ヴェント","ゼノ","リグル","ノクス","カイム","セラ","ドラウグ","フィルア","ガロン",

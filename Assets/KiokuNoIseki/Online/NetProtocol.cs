@@ -11,12 +11,12 @@ namespace KiokuNoIseki.Online
     public class GenCardInfo
     {
         public string cardId;   // "gen_xxxxxxxx"
-        public string name;     // 真名
+        public string name;     // 名前
         public int elem;        // Element
         public int cost;
         public int atk;         // 基礎攻撃力（definition.attack）
         public int def;         // 基礎防御力
-        public int incCost;     // 詠唱コスト
+        public int incCost;     // 発動コスト
         public string techName; // 技名
         public int techEff;     // EffectId
         public int techMag;     // 技の効果量
@@ -31,7 +31,7 @@ namespace KiokuNoIseki.Online
             attack = atk,
             defense = def,
             guard = false,
-            effectText = "写し身の守護者。技「" + techName + "」を持つ。",
+            effectText = EffectText.Describe((EffectId)techEff, techMag),
             incantationCost = incCost,
             techniqueName = techName,
             techniqueEffect = (EffectId)techEff,
@@ -54,7 +54,7 @@ namespace KiokuNoIseki.Online
     }
 
     // 18章：ホスト権威の同期で送受信する「視点ごとのゲーム状態スナップショット」。
-    // 隠し情報保護のため、相手の手札・遺構デッキの中身は送らず、枚数のみ送る。
+    // 隠し情報保護のため、相手の手札・山札の中身は送らず、枚数のみ送る。
     // カードの不変データ(名前/コスト/技/効果)は両者が CardDatabase で共有しているので、
     // スナップショットには定義ID(cardId)と可変状態だけを載せれば十分。
 
@@ -63,9 +63,9 @@ namespace KiokuNoIseki.Online
     {
         public int iid;        // インスタンスID（操作時の指定に使う）
         public string cardId;  // 定義ID（空なら裏向き=相手の手札）
-        public int atk;        // 現在攻撃力（刻印等込み）
+        public int atk;        // 現在攻撃力（強化等込み）
         public int def;        // 現在防御力（残り）
-        public int engraving;  // 刻印数
+        public int engraving;  // 強化数
         public bool sick;      // 召喚酔い
         public bool faceDown;  // 裏向き（相手の手札）
     }
@@ -78,7 +78,7 @@ namespace KiokuNoIseki.Online
         public int gauge;
         public int gaugeMax;
         public int memoryCount;
-        public int pactCount;   // 完全刻印(刻印3)が記憶領域に何体か（盟約進捗・公開情報）
+        public int pactCount;   // 完全強化(強化3)が勝利ゾーンに何体か（盟約進捗・公開情報）
         public int rubble;
         public CardView[] hand = Array.Empty<CardView>();
         public CardView[] board = Array.Empty<CardView>();
@@ -90,9 +90,9 @@ namespace KiokuNoIseki.Online
     {
         public PlayerView me;   // 受信者自身（手札は表）
         public PlayerView foe;  // 相手（手札は裏向き）
-        public int deckCount;   // 遺構デッキ残数
+        public int deckCount;   // 山札残数
         public string deckTopId = "";  // デッキトップの定義ID（公開情報。空=デッキ切れ）
-        public int deckTopEng;         // デッキトップの刻印数
+        public int deckTopEng;         // デッキトップの強化数
         public int phase;       // TurnPhase
         public bool myTurn;     // 受信者の手番か
         public int result;      // 0=継続 / 1=自分の勝ち / 2=相手の勝ち
@@ -108,8 +108,8 @@ namespace KiokuNoIseki.Online
     public class NetAction
     {
         public int type;   // NetActionType
-        public int a;      // 主対象のインスタンスID（手札カード/攻撃元/守護者/捧げる手札）
-        public int b;      // 副対象のインスタンスID（攻撃先=0で本体／想起術の対象。未使用は0）
+        public int a;      // 主対象のインスタンスID（手札カード/攻撃元/ユニット/捧げる手札）
+        public int b;      // 副対象のインスタンスID（攻撃先=0で本体／呪文の対象。未使用は0）
     }
 
     public static class NetJson

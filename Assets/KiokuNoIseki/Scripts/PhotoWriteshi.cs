@@ -6,7 +6,7 @@ namespace KiokuNoIseki
     // 写真(Texture2D)から写し身(CardInstance)を組み立てる橋渡し役。
     // ・画像から決定論的ハッシュと平均HSVを算出（→CardGeneratorへ）
     // ・写真をSpriteにしてGeneratedArtへ登録（→対戦画面で表示）
-    // ・生成した写し身は WriteshiCollection に貯め、対戦開始時に遺構デッキへ合流する。
+    // ・生成した写し身は WriteshiCollection に貯め、対戦開始時に山札へ合流する。
     public static class PhotoWriteshi
     {
         // 写真 + （任意の）AI命名結果から写し身を作る。名前がnull/空ならオフライン候補で決定論的に命名。
@@ -66,7 +66,7 @@ namespace KiokuNoIseki
         }
     }
 
-    // 端末内で生成した写し身の一時コレクション（対戦開始時に遺構デッキへ渡す）。
+    // 端末内で生成した写し身の一時コレクション（対戦開始時に山札へ渡す）。
     // ※実行時のみ保持（永続保存は将来の拡張。15章のキャッシュ相当）。
     public static class WriteshiCollection
     {
