@@ -30,6 +30,8 @@ namespace KiokuNoIseki
         CardInstance pendingSpell;          // 対象選択待ちの想起術
         bool pendingSpellTargetsEnemy;      // true=相手の守護者を選ぶ / false=自分の守護者
         bool showRules;
+        bool showWriteshiForge;    // 写し身工房オーバーレイ表示中
+        bool writeshiBusy;         // 命名リクエスト処理中（多重起動防止）
         GameObject cardDetail; // ホバー/選択中カードのスキル詳細パネル
 
         // オンライン拡張（別アセンブリ）への接続点。拡張が読み込まれると設定される。
@@ -191,6 +193,7 @@ namespace KiokuNoIseki
             {
                 DrawTitle();
                 if (showRules) DrawRulesOverlay();
+                if (showWriteshiForge) DrawWriteshiForge();
                 return;
             }
 
@@ -630,6 +633,8 @@ namespace KiokuNoIseki
             engine = new GameEngine();
             engine.OnLog += AddLog;
             engine.OnStateChanged += Redraw;
+            // 写し身があれば遺構デッキに合流させる（同数の固定守護者と置き換わる）。
+            engine.injectedWriteshi = WriteshiCollection.Count > 0 ? WriteshiCollection.Snapshot() : null;
             engine.NewGame(player1IsAI: ai);
             AddLog(ai ? "=== 対戦開始：あなた vs AI ==="
                       : "=== ローカル対人戦 開始：プレイヤー1 vs プレイヤー2 ===");
@@ -679,6 +684,9 @@ namespace KiokuNoIseki
             });
             var b4 = MakeCenterButton("ルールを見る", new Vector2(0, -164), new Vector2(340, 56), new Color(0.40f, 0.40f, 0.48f));
             b4.onClick.AddListener(() => { showRules = true; Redraw(); });
+
+            var b5 = MakeCenterButton(WriteshiButtonLabel(), new Vector2(0, -230), new Vector2(340, 56), new Color(0.48f, 0.38f, 0.30f));
+            b5.onClick.AddListener(() => { showWriteshiForge = true; Redraw(); });
         }
 
         void DrawTitleFromPrefab(TitleView prefab)
@@ -694,6 +702,131 @@ namespace KiokuNoIseki
                 else AddLog("オンライン機能が読み込まれていません（パッケージ/コンパイルを確認）。");
             });
             if (tv.rulesButton != null) tv.rulesButton.onClick.AddListener(() => { showRules = true; Redraw(); });
+
+            // プレハブ側には写し身工房ボタンが無いため、コードで下部に重ねて追加する。
+            var forgeBtn = MakeCenterButton(WriteshiButtonLabel(), new Vector2(0, -250), new Vector2(340, 52), new Color(0.48f, 0.38f, 0.30f));
+            forgeBtn.onClick.AddListener(() => { showWriteshiForge = true; Redraw(); });
+        }
+
+        string WriteshiButtonLabel() =>
+            WriteshiCollection.Count > 0 ? $"写し身工房（{WriteshiCollection.Count}体）" : "写し身工房（写真からカード生成）";
+
+        // 写し身工房オーバーレイ：写真から写し身を生成し、対戦の遺構デッキに混ぜる。
+        void DrawWriteshiForge()
+        {
+            var dim = MakePanel(root, new Color(0.03f, 0.03f, 0.05f, 0.92f), "WriteshiForge");
+            Stretch(dim.rectTransform);
+
+            var title = MakeChildText(dim.transform, "写し身工房", 34, TextAnchor.MiddleCenter, new Color(0.95f, 0.86f, 0.72f));
+            var trt = title.rectTransform;
+            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 0.5f);
+            trt.anchoredPosition = new Vector2(0, 235); trt.sizeDelta = new Vector2(700, 60);
+
+            string apiState = WriteshiNamingService.HasKeys() ? "AI命名: 有効" : "AI命名: 無効（オフライン名で生成）";
+            string info =
+                $"写真から守護者カード（写し身）を作り、対戦の遺構デッキに混ぜます。\n" +
+                $"作成した写し身: {WriteshiCollection.Count} 体　/　{apiState}\n" +
+                (writeshiBusy ? "…命名中…" : "同じ写真からは常に同じカードが生成されます。");
+            var infoT = MakeChildText(dim.transform, info, 18, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.88f));
+            var irt = infoT.rectTransform;
+            irt.anchorMin = irt.anchorMax = irt.pivot = new Vector2(0.5f, 0.5f);
+            irt.anchoredPosition = new Vector2(0, 140); irt.sizeDelta = new Vector2(760, 110);
+
+            // アルバムから選ぶ（実機のみ／プラグイン必要）
+            var pick = MakeCenterButton("アルバムから選ぶ", new Vector2(0, 60), new Vector2(360, 56), new Color(0.34f, 0.44f, 0.55f));
+            pick.onClick.AddListener(() => PickFromGallery());
+
+            // カメラで撮る（実機のみ／プラグイン必要）
+            var cam = MakeCenterButton("カメラで撮る", new Vector2(0, -6), new Vector2(360, 56), new Color(0.34f, 0.50f, 0.44f));
+            cam.onClick.AddListener(() => TakePhoto());
+
+            // テスト用：プラグイン無しでも写し身生成を試せる（ランダム画像から）
+            var test = MakeCenterButton("テスト写し身を追加（画像なし）", new Vector2(0, -72), new Vector2(360, 52), new Color(0.42f, 0.40f, 0.52f));
+            test.onClick.AddListener(() => AddTestWriteshi());
+
+            var clear = MakeCenterButton("全部消す", new Vector2(-95, -140), new Vector2(170, 50), new Color(0.5f, 0.34f, 0.34f));
+            clear.onClick.AddListener(() => { WriteshiCollection.Clear(); Redraw(); });
+
+            var close = MakeCenterButton("閉じる", new Vector2(95, -140), new Vector2(170, 50), new Color(0.4f, 0.4f, 0.48f));
+            close.onClick.AddListener(() => { showWriteshiForge = false; Redraw(); });
+        }
+
+        // 写真テクスチャ→（AI命名 or オフライン名）→写し身をコレクションに追加。
+        void ProcessPhoto(Texture2D tex)
+        {
+            if (tex == null) { AddLog("画像の読み込みに失敗しました。"); return; }
+            if (writeshiBusy) return;
+            writeshiBusy = true; Redraw();
+            StartCoroutine(WriteshiNamingService.RequestTrueName(tex, name =>
+            {
+                var inst = PhotoWriteshi.Build(tex, name); // name が null ならオフライン候補で決定論的に命名
+                WriteshiCollection.Add(inst);
+                AddLog($"写し身「{inst.definition.trueName}」を生成（{ElemJp(inst.definition.element)}/コスト{inst.definition.cost}/{inst.definition.attack}・{inst.definition.defense}）。");
+                writeshiBusy = false;
+                Redraw();
+            }));
+        }
+
+        static string ElemJp(Element e) => e switch
+        {
+            Element.Honoo => "焔", Element.Mori => "森", Element.Nagare => "流",
+            Element.Hikari => "光", Element.Kage => "影", _ => "?"
+        };
+
+        void PickFromGallery()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            // PC（Windows）は標準のファイル選択ダイアログ。NativeGallery はWindowsビルドで動かないため。
+            string path = StandaloneFilePicker.PickImagePath();
+            if (string.IsNullOrEmpty(path)) { AddLog("写真が選択されませんでした。"); return; }
+            var tex = StandaloneFilePicker.LoadTexture(path, 512);
+            ProcessPhoto(tex);
+#else
+            // スマホ（Android/iOS）はアルバムを開く。
+            NativeGallery.GetImageFromGallery(p =>
+            {
+                if (string.IsNullOrEmpty(p)) { AddLog("写真が選択されませんでした。"); return; }
+                var t = NativeGallery.LoadImageAtPath(p, 512, false);
+                ProcessPhoto(t);
+            }, "写真を選択");
+#endif
+        }
+
+        void TakePhoto()
+        {
+            // NativeCamera はエディタでは何も起きない（実機専用）。実機ではカメラを起動。
+            if (!NativeCamera.DeviceHasCamera())
+            {
+                AddLog("この端末（またはエディタ）ではカメラを使えません。実機で試すか、アルバム/テスト写し身を使ってください。");
+                return;
+            }
+            NativeCamera.TakePicture(path =>
+            {
+                if (string.IsNullOrEmpty(path)) { AddLog("撮影がキャンセルされました。"); return; }
+                var tex = NativeCamera.LoadImageAtPath(path, 512, false);
+                ProcessPhoto(tex);
+            }, 512);
+        }
+
+        // プラグイン無しでもパイプラインを確認するため、ランダムな単色ノイズ画像から写し身を作る。
+        void AddTestWriteshi()
+        {
+            int n = WriteshiCollection.Count;
+            var tex = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+            var rng = new System.Random(unchecked(System.Environment.TickCount + n * 7919));
+            Color baseCol = new Color((float)rng.NextDouble(), (float)rng.NextDouble(), (float)rng.NextDouble());
+            var px = new Color32[64 * 64];
+            for (int i = 0; i < px.Length; i++)
+            {
+                float j = (float)rng.NextDouble() * 0.2f;
+                px[i] = new Color(Mathf.Clamp01(baseCol.r + j), Mathf.Clamp01(baseCol.g + j), Mathf.Clamp01(baseCol.b + j));
+            }
+            tex.SetPixels32(px); tex.Apply();
+            // テストはAPIを叩かずオフライン名で即生成
+            var inst = PhotoWriteshi.Build(tex, null);
+            WriteshiCollection.Add(inst);
+            AddLog($"テスト写し身「{inst.definition.trueName}」を生成（{ElemJp(inst.definition.element)}/コスト{inst.definition.cost}/{inst.definition.attack}・{inst.definition.defense}）。");
+            Redraw();
         }
 
         void DrawPassScreen()
@@ -1076,6 +1209,13 @@ namespace KiokuNoIseki
         Sprite GetCardArt(CardData def, Color tint)
         {
             if (s_artCache.TryGetValue(def.id, out var cached)) return cached;
+
+            // 0) 写し身は登録済みの写真スプライトを最優先
+            if (GeneratedArt.IsGenerated(def.id))
+            {
+                var g = GeneratedArt.Get(def.id);
+                if (g != null) { s_artCache[def.id] = g; return g; }
+            }
 
             Sprite sp = null;
             // 1) ユーザー画像を優先（Resources/CardArt/ 配下）

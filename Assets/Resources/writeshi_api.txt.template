@@ -1,0 +1,7 @@
+# 写し身の命名に使うAPIキー。このファイルを writeshi_api.txt にリネームして自分のキーを入れる。
+# 1行目: Google Vision API キー
+# 2行目: Groq API キー
+# writeshi_api.txt は .gitignore 済み（キーをGitHubに公開しないため）。
+# キーが無い/空の場合はオフラインの候補名で自動命名される（対戦は問題なく成立）。
+YOUR_GOOGLE_VISION_API_KEY
+YOUR_GROQ_API_KEY

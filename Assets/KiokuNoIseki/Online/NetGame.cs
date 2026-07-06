@@ -17,6 +17,10 @@ namespace KiokuNoIseki.Online
 
         const string MSG_STATE = "KI_State";
         const string MSG_ACTION = "KI_Action";
+        const string MSG_WRITESHI = "KI_Writeshi";  // client→host：自分の写し身（写真なし）
+
+        readonly List<GenCardInfo> clientWriteshi = new List<GenCardInfo>();
+        bool clientWriteshiReceived;
 
         public bool IsHost;
         public GameView LatestView;                 // 受信者の現在ビュー（UIが描画）
@@ -33,6 +37,7 @@ namespace KiokuNoIseki.Online
             IsHost = true;
             Instance = this;
             NM.CustomMessagingManager.RegisterNamedMessageHandler(MSG_ACTION, OnActionReceivedHost);
+            NM.CustomMessagingManager.RegisterNamedMessageHandler(MSG_WRITESHI, OnWriteshiReceivedHost);
             NM.OnClientConnectedCallback += OnPeerConnectedHost;
             TryStartGame();
         }
@@ -42,6 +47,37 @@ namespace KiokuNoIseki.Online
             IsHost = false;
             Instance = this;
             NM.CustomMessagingManager.RegisterNamedMessageHandler(MSG_STATE, OnStateReceivedClient);
+            NM.OnClientConnectedCallback += OnLocalConnectedClient;
+            // すでに接続済みなら即送信（登録タイミングの取りこぼし対策）
+            if (NM.IsConnectedClient) SendWriteshi();
+        }
+
+        // クライアント：自分の接続確立時に、自分の写し身（写真なし）をホストへ送る。
+        void OnLocalConnectedClient(ulong clientId)
+        {
+            if (clientId != NM.LocalClientId) return;
+            SendWriteshi();
+        }
+
+        void SendWriteshi()
+        {
+            var wrap = new GenCardList
+            {
+                items = WriteshiCollection.Cards
+                    .Select(c => GenCardInfo.From(c.definition)).ToArray()
+            };
+            SendBytes(MSG_WRITESHI, NetworkManager.ServerClientId,
+                Encoding.UTF8.GetBytes(UnityEngine.JsonUtility.ToJson(wrap)), NetworkDelivery.Reliable);
+        }
+
+        // ホスト：クライアントの写し身を受信 → 記録して開始判定
+        void OnWriteshiReceivedHost(ulong sender, FastBufferReader reader)
+        {
+            var wrap = UnityEngine.JsonUtility.FromJson<GenCardList>(Encoding.UTF8.GetString(ReadBytes(reader)));
+            clientWriteshi.Clear();
+            if (wrap != null && wrap.items != null) clientWriteshi.AddRange(wrap.items);
+            clientWriteshiReceived = true;
+            TryStartGame();
         }
 
         public void Shutdown()
@@ -51,7 +87,13 @@ namespace KiokuNoIseki.Online
                 NM.CustomMessagingManager.UnregisterNamedMessageHandler(MSG_STATE);
                 NM.CustomMessagingManager.UnregisterNamedMessageHandler(MSG_ACTION);
             }
-            if (NM != null) NM.OnClientConnectedCallback -= OnPeerConnectedHost;
+            if (NM != null)
+            {
+                NM.OnClientConnectedCallback -= OnPeerConnectedHost;
+                NM.OnClientConnectedCallback -= OnLocalConnectedClient;
+                if (NM.CustomMessagingManager != null)
+                    NM.CustomMessagingManager.UnregisterNamedMessageHandler(MSG_WRITESHI);
+            }
             engine = null;
             Instance = null;
         }
@@ -66,10 +108,18 @@ namespace KiokuNoIseki.Online
         {
             if (engine != null) return;
             if (NM.ConnectedClientsIds.Count < 2) return; // ホスト＋参加者の2人が必要
+            if (!clientWriteshiReceived) return;          // 参加者の写し身（空でも可）を受け取ってから開始
 
             engine = new GameEngine();
             engine.OnLog += s => { hostLog.Add(s); while (hostLog.Count > 8) hostLog.RemoveAt(0); };
             engine.OnStateChanged += BroadcastAll;
+
+            // 両者の写し身を遺構デッキに合流させる（写真はホストには送られていない＝相手のは画像なし）。
+            var injected = new List<CardInstance>();
+            injected.AddRange(WriteshiCollection.Snapshot());                     // ホスト自身（写真は手元にある）
+            foreach (var g in clientWriteshi) injected.Add(new CardInstance(g.ToCardData())); // 参加者（写真なし）
+            engine.injectedWriteshi = injected.Count > 0 ? injected : null;
+
             engine.NewGame(player1IsAI: false); // host=player0, client=player1
             hostLog.Add("=== オンライン対戦 開始 ===");
             BroadcastAll();
@@ -176,8 +226,23 @@ namespace KiokuNoIseki.Online
             int result = engine.result == GameResult.Ongoing ? 0
                 : (engine.result == GameResult.Player0Win ? (viewer == 0 ? 1 : 2)
                                                           : (viewer == 1 ? 1 : 2));
+
+            // このビューに写る写し身の定義情報を集める（受信側が名前/技/系統を復元して描画する。写真は含めない）。
+            var gen = new List<GenCardInfo>();
+            var seen = new HashSet<string>();
+            void AddGen(CardInstance c)
+            {
+                if (c != null && c.definition != null && c.definition.id.StartsWith("gen_") && seen.Add(c.definition.id))
+                    gen.Add(GenCardInfo.From(c.definition));
+            }
+            foreach (var c in me.hand) AddGen(c);
+            foreach (var c in me.board) AddGen(c);
+            foreach (var c in foe.board) AddGen(c);
+            if (engine.deck.Count > 0) AddGen(engine.deck.cards[0]); // デッキトップは公開情報
+
             return new GameView
             {
+                genCards = gen.ToArray(),
                 me = BuildPlayer(me, ownHand: true),
                 foe = BuildPlayer(foe, ownHand: false),
                 deckCount = engine.deck.Count,

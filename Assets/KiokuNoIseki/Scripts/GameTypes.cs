@@ -77,6 +77,9 @@ namespace KiokuNoIseki
     public class CardInstance
     {
         public CardData definition;
+        // 【v2】写し身の場合に元データを保持（19章）。固定カードでは常にnull。
+        // definition は generated.ToCardData() の合成データを指すため、エンジンは両者を区別せず扱える。
+        public GeneratedGuardianData generated;
         public int weatheringCounter;
         public int engravingCount;
         public int turnsInHand;
@@ -96,6 +99,8 @@ namespace KiokuNoIseki
         public readonly int instanceId;
         static int s_next = 1;
         public CardInstance(CardData def) { definition = def; instanceId = s_next++; }
+        // 写し身インスタンス：合成CardDataをdefinitionに、元データをgeneratedに保持
+        public CardInstance(GeneratedGuardianData gen) : this(gen.ToCardData()) { generated = gen; }
 
         public bool IsGuardian => definition.kind == CardKind.Guardian;
 

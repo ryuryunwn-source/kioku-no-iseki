@@ -1,8 +1,58 @@
 using System;
 using System.Collections.Generic;
+using KiokuNoIseki;
 
 namespace KiokuNoIseki.Online
 {
+    // 【v2】写し身の同期用。写真そのものは送らず、生成された結果（合成CardData相当）だけを載せる（18-4）。
+    // カードIDは画像ハッシュから決定論的なので、受信側は自分が同じ写真を持っていれば実画像で描画でき、
+    // 相手の写し身はプレースホルダ画像になる（写真は端末外に出ない）。
+    [Serializable]
+    public class GenCardInfo
+    {
+        public string cardId;   // "gen_xxxxxxxx"
+        public string name;     // 真名
+        public int elem;        // Element
+        public int cost;
+        public int atk;         // 基礎攻撃力（definition.attack）
+        public int def;         // 基礎防御力
+        public int incCost;     // 詠唱コスト
+        public string techName; // 技名
+        public int techEff;     // EffectId
+        public int techMag;     // 技の効果量
+
+        public CardData ToCardData() => new CardData
+        {
+            id = cardId,
+            trueName = string.IsNullOrEmpty(name) ? "写し身" : name,
+            kind = CardKind.Guardian,
+            element = (Element)elem,
+            cost = cost,
+            attack = atk,
+            defense = def,
+            guard = false,
+            effectText = "写し身の守護者。技「" + techName + "」を持つ。",
+            incantationCost = incCost,
+            techniqueName = techName,
+            techniqueEffect = (EffectId)techEff,
+            techniqueMagnitude = techMag,
+        };
+
+        public static GenCardInfo From(CardData d) => new GenCardInfo
+        {
+            cardId = d.id, name = d.trueName, elem = (int)d.element, cost = d.cost,
+            atk = d.attack, def = d.defense, incCost = d.incantationCost,
+            techName = d.techniqueName, techEff = (int)d.techniqueEffect, techMag = d.techniqueMagnitude,
+        };
+    }
+
+    // JsonUtility はトップレベル配列を扱えないためラップする（client→hostの写し身送信に使用）。
+    [Serializable]
+    public class GenCardList
+    {
+        public GenCardInfo[] items = Array.Empty<GenCardInfo>();
+    }
+
     // 18章：ホスト権威の同期で送受信する「視点ごとのゲーム状態スナップショット」。
     // 隠し情報保護のため、相手の手札・遺構デッキの中身は送らず、枚数のみ送る。
     // カードの不変データ(名前/コスト/技/効果)は両者が CardDatabase で共有しているので、
@@ -47,6 +97,8 @@ namespace KiokuNoIseki.Online
         public bool myTurn;     // 受信者の手番か
         public int result;      // 0=継続 / 1=自分の勝ち / 2=相手の勝ち
         public string[] log = Array.Empty<string>();
+        // このビューに写っている写し身の定義情報（受信側が名前/技/系統を復元して描画する）。写真は含まない。
+        public GenCardInfo[] genCards = Array.Empty<GenCardInfo>();
     }
 
     // クライアント→ホストの操作要求

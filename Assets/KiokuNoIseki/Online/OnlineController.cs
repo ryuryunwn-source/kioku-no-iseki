@@ -37,6 +37,8 @@ namespace KiokuNoIseki.Online
         bool showRules;            // ルール表示中
 
         static Dictionary<string, CardData> s_db;
+        // 写し身（gen_）の定義。ネット経由で受け取ったGenCardInfoから復元して保持する。
+        static readonly Dictionary<string, CardData> s_genDb = new Dictionary<string, CardData>();
         static CardData Def(string id)
         {
             if (string.IsNullOrEmpty(id)) return null;
@@ -45,7 +47,17 @@ namespace KiokuNoIseki.Online
                 s_db = new Dictionary<string, CardData>();
                 foreach (var d in CardDatabase.BuildDeckDefinitions()) s_db[d.id] = d;
             }
-            return s_db.TryGetValue(id, out var v) ? v : null;
+            if (s_db.TryGetValue(id, out var v)) return v;
+            return s_genDb.TryGetValue(id, out var g) ? g : null;
+        }
+
+        // ネット経由で受け取った写し身定義を登録（写真は含まれない＝描画は自分の手元画像 or プレースホルダ）。
+        static void RegisterGen(GenCardInfo[] infos)
+        {
+            if (infos == null) return;
+            foreach (var info in infos)
+                if (info != null && !string.IsNullOrEmpty(info.cardId))
+                    s_genDb[info.cardId] = info.ToCardData();
         }
 
         static readonly Dictionary<Element, Color> ElemColor = new Dictionary<Element, Color>
@@ -275,6 +287,7 @@ namespace KiokuNoIseki.Online
 
         void OnViewUpdated()
         {
+            if (net != null && net.LatestView != null) RegisterGen(net.LatestView.genCards);
             inPlay = true;
             pmode = PMode.Normal; selectedIid = 0; pendingSpellIid = 0;
             RedrawPlay();
@@ -566,6 +579,14 @@ namespace KiokuNoIseki.Online
         {
             if (def == null) return null;
             if (s_artCache.TryGetValue(def.id, out var c)) return c;
+            if (KiokuNoIseki.GeneratedArt.IsGenerated(def.id))
+            {
+                // 自分が同じ写真を持っていれば実画像。無ければ（相手の写し身）系統色のプレースホルダ。
+                var g = KiokuNoIseki.GeneratedArt.Get(def.id);
+                if (g == null) g = MakeGenPlaceholder(def);
+                s_artCache[def.id] = g;
+                return g;
+            }
             Sprite sp = null;
             if (def.kind == CardKind.Guardian && def.id.Length > 1 && int.TryParse(def.id.Substring(1), out int gi))
                 sp = Resources.Load<Sprite>($"CardArt/guardian_{gi:000}");
@@ -573,6 +594,28 @@ namespace KiokuNoIseki.Online
             s_artCache[def.id] = sp;
             return sp;
         }
+
+        // 相手の写し身（写真が手元に無い）用のプレースホルダ。系統色のグラデ＋中央菱形。
+        static Sprite MakeGenPlaceholder(CardData def)
+        {
+            const int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            Color tint = ElemColor.TryGetValue(def.element, out var col) ? col : new Color(0.4f, 0.4f, 0.45f);
+            Color top = tint * 0.75f; top.a = 1f;
+            Color bottom = tint * 0.22f; bottom.a = 1f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = (x - size * 0.5f) / (size * 0.5f);
+                    float dy = (y - size * 0.5f) / (size * 0.5f);
+                    Color c = Color.Lerp(bottom, top, (float)y / size);
+                    if (Mathf.Abs(dx) + Mathf.Abs(dy) < 0.55f) c = Color.Lerp(c, Color.white, 0.25f); // 中央菱形
+                    tex.SetPixel(x, y, c);
+                }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+        }
+
         static string ElemName(Element e) => e switch
         {
             Element.Honoo => "焔", Element.Mori => "森", Element.Nagare => "流",

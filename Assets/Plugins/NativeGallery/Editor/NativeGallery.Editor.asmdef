@@ -1,13 +1,9 @@
 {
-    "name": "KiokuNoIseki",
-    "rootNamespace": "KiokuNoIseki",
-    "references": [
-        "UnityEngine.UI",
-        "Unity.InputSystem",
-        "NativeCamera.Runtime",
-        "NativeGallery.Runtime"
+    "name": "NativeGallery.Editor",
+    "references": [],
+    "includePlatforms": [
+        "Editor"
     ],
-    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

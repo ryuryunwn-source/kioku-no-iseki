@@ -72,6 +72,10 @@ namespace KiokuNoIseki
         public RecallerState Cur => players[currentPlayer];
         public RecallerState Opp => players[1 - currentPlayer];
 
+        // 【v2】遺構デッキに合流させる写し身（両者ぶんまとめて）。null/空なら固定48枚のまま。
+        // 与えた写し身の枚数だけ、固定守護者(30枚のうち)をランダムに置き換える（5章・13章末尾の方針）。
+        public List<CardInstance> injectedWriteshi;
+
         // UIへ通知するログ
         public Action<string> OnLog;
         public Action OnStateChanged;
@@ -88,8 +92,29 @@ namespace KiokuNoIseki
             players[1] = new RecallerState { name = player1IsAI ? "AI想起者" : "プレイヤー2", isAI = player1IsAI };
 
             deck = new RuinsDeck(rng);
-            foreach (var def in CardDatabase.BuildDeckDefinitions())
-                deck.cards.Add(new CardInstance(def));
+            var defs = CardDatabase.BuildDeckDefinitions();
+
+            // 写し身の差し替え：与えた枚数だけ固定守護者をランダムに除外し、写し身を代わりに入れる。
+            int replace = 0;
+            HashSet<CardData> removed = null;
+            if (injectedWriteshi != null && injectedWriteshi.Count > 0)
+            {
+                int guardianCount = defs.Count(d => d.kind == CardKind.Guardian);
+                replace = Math.Min(injectedWriteshi.Count, guardianCount);
+                removed = new HashSet<CardData>(
+                    defs.Where(d => d.kind == CardKind.Guardian)
+                        .OrderBy(_ => rng.Next())
+                        .Take(replace));
+                Log($"写し身 {replace} 体が固定守護者と置き換わって遺構デッキに合流した。");
+            }
+
+            foreach (var def in defs)
+                if (removed == null || !removed.Contains(def))
+                    deck.cards.Add(new CardInstance(def));
+            if (replace > 0)
+                for (int i = 0; i < replace; i++)
+                    deck.cards.Add(injectedWriteshi[i]);
+
             deck.Shuffle();
 
             // 各プレイヤー5枚発掘

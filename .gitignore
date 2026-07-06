@@ -36,6 +36,10 @@ build.log
 *.booproj
 *.svd
 
+# 写し身の命名APIキー（GitHubに公開しない。テンプレートのみ追跡）
+/[Aa]ssets/[Rr]esources/writeshi_api.txt
+/[Aa]ssets/[Rr]esources/writeshi_api.txt.meta
+
 # OS
 .DS_Store
 Thumbs.db
