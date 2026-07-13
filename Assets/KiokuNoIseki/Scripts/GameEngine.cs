@@ -81,6 +81,8 @@ namespace KiokuNoIseki
         // UIへ通知するログ
         public Action<string> OnLog;
         public Action OnStateChanged;
+        // 攻撃演出用イベント（攻撃者, 対象/本体直接攻撃ならnull）。UI側で光らせる/揺らす。
+        public Action<CardInstance, CardInstance> OnAttack;
         void Log(string s) { OnLog?.Invoke(s); }
 
         public GameEngine(int seed = 0)
@@ -311,6 +313,7 @@ namespace KiokuNoIseki
                 ResolveDestruction(p, attacker, byOpponent: o);
                 ResolveDestruction(o, target, byOpponent: p);
             }
+            OnAttack?.Invoke(attacker, target); // 攻撃演出（Redrawより先に発火）
             CheckWinConditions();
             OnStateChanged?.Invoke();
             return true;

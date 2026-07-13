@@ -184,7 +184,7 @@ namespace KiokuNoIseki
             for (int i = root.childCount - 1; i >= 0; i--)
             {
                 var ch = root.GetChild(i);
-                if (ch.name == "BG") continue;
+                if (ch.name == "BG" || ch.name == "FxLayer") continue; // 背景と演出層は作り直さない
                 Destroy(ch.gameObject);
             }
             cardDetail = null; // 上のDestroyで詳細パネルも消えるため参照をクリア
@@ -612,6 +612,56 @@ namespace KiokuNoIseki
             Redraw();
         }
 
+        // ───────── 攻撃演出 ─────────
+        // Redraw() は root 直下を毎回作り直す（BG/FxLayer は除外）。演出は永続の FxLayer に出す。
+        Transform fxLayer;
+        Transform GetFxLayer()
+        {
+            if (fxLayer == null && root != null)
+            {
+                var go = new GameObject("FxLayer", typeof(RectTransform));
+                go.transform.SetParent(root, false);
+                var rt = (RectTransform)go.transform;
+                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+                rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+                fxLayer = go.transform;
+            }
+            return fxLayer;
+        }
+
+        void OnAttackFx(CardInstance attacker, CardInstance target)
+        {
+            if (root == null) return;
+            // 本体への直接攻撃=赤、ユニット同士の戦闘=黄白
+            Color c = target == null ? new Color(1f, 0.25f, 0.15f) : new Color(1f, 0.92f, 0.55f);
+            StartCoroutine(FlashFx(c));
+        }
+
+        System.Collections.IEnumerator FlashFx(Color color)
+        {
+            var layer = GetFxLayer();
+            if (layer == null) yield break;
+
+            var go = new GameObject("AttackFx", typeof(RectTransform));
+            go.transform.SetParent(layer, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            var img = go.AddComponent<Image>();
+            img.raycastTarget = false;
+
+            float t = 0f; const float dur = 0.22f;
+            while (t < dur)
+            {
+                t += Time.deltaTime;
+                layer.SetAsLastSibling(); // 作り直された盤面より前面を維持
+                float a = Mathf.Lerp(0.40f, 0f, t / dur);
+                img.color = new Color(color.r, color.g, color.b, a);
+                yield return null;
+            }
+            if (go != null) Destroy(go);
+        }
+
         // AIの番なら自動進行
         void AfterAiMaybe()
         {
@@ -645,6 +695,7 @@ namespace KiokuNoIseki
             engine.OnLog += AddLog;
             engine.OnStateChanged += Redraw;
             engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived; // ★バグ修正：新エンジンにボイス登録！
+            engine.OnAttack += OnAttackFx; // 攻撃演出
 
             // 写し身があれば山札に合流させる（同数の固定ユニットと置き換わる）。
             engine.injectedWriteshi = WriteshiCollection.Count > 0 ? WriteshiCollection.Snapshot() : null;
