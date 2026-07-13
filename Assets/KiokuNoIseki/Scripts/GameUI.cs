@@ -10,7 +10,7 @@ namespace KiokuNoIseki
     // カードを描画する。シーン編集不要：Play押下で自動生成される。
     public class GameUI : MonoBehaviour
     {
-        GameEngine engine;
+     public GameEngine engine;
         Font jpFont;
 
         // 系統ごとの枠の縁色（14-3：5バリエーション）
@@ -124,6 +124,7 @@ namespace KiokuNoIseki
         }
 
         void Start()
+
         {
             jpFont = LoadJpFont();
             EnsureEventSystem();
@@ -235,7 +236,7 @@ namespace KiokuNoIseki
             if (ongoing && (myPact >= pactReach || foePact >= pactReach))
             {
                 string who = foePact >= myPact ? foe.name : me.name;
-                var warnT = MakeLabel(root, $"⚠ 古き盟約：{who} はあと {GameEngine.PactWinCount - Mathf.Max(myPact, foePact)} 体で勝利",
+                var warnT = MakeLabel(root, $"⚠ 古き盟^約：{who} はあと {GameEngine.PactWinCount - Mathf.Max(myPact, foePact)} 体で勝利",
                     new Vector2(290, -78), new Vector2(700, 30), 20, TextAnchor.MiddleCenter,
                     new Color(1f, 0.45f, 0.35f));
                 OutlineText(warnT);
@@ -546,6 +547,7 @@ namespace KiokuNoIseki
             }
 
             // 選択中のユニットの行動
+           // 選択中のユニットの行動
             if (selectedAttacker != null)
             {
                 var g = selectedAttacker;
@@ -630,9 +632,20 @@ namespace KiokuNoIseki
             inTitle = false; awaitingPass = false; showRules = false;
             selectedAttacker = null; mode = Mode.Normal;
             logLines.Clear();
+            
+            // ★バグ修正：古いイベントを解除（もしあれば）してから新しいエンジンを作る
+            if (engine != null)
+            {
+                engine.OnLog -= AddLog;
+                engine.OnStateChanged -= Redraw;
+                engine.OnVoiceAttackRequest -= OnVoiceAttackCommandReceived;
+            }
+
             engine = new GameEngine();
             engine.OnLog += AddLog;
             engine.OnStateChanged += Redraw;
+            engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived; // ★バグ修正：新エンジンにボイス登録！
+
             // 写し身があれば山札に合流させる（同数の固定ユニットと置き換わる）。
             engine.injectedWriteshi = WriteshiCollection.Count > 0 ? WriteshiCollection.Snapshot() : null;
             engine.NewGame(player1IsAI: ai);
@@ -725,7 +738,7 @@ namespace KiokuNoIseki
             string apiState = WriteshiNamingService.HasKeys() ? "AI命名: 有効" : "AI命名: 無効（オフライン名で生成）";
             string info =
                 $"写真からユニットカード（写し身）を作り、対戦の山札に混ぜます。\n" +
-                $"作成した写し身: {WriteshiCollection.Count} 体　/　{apiState}\n" +
+                $"作成した写し身: {WriteshiCollection.Count} 体 / {apiState}\n" +
                 (writeshiBusy ? "…命名中…" : "同じ写真からは常に同じカードが生成されます。");
             var infoT = MakeChildText(dim.transform, info, 18, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.88f));
             var irt = infoT.rectTransform;
@@ -926,9 +939,9 @@ namespace KiokuNoIseki
             // 中央の同心円彫紋
             Vector2 ctr = new Vector2(0.5f, 0.5f);
             MakeCircle(go.transform, bronzeCol,                       ctr, Vector2.zero, 78*s);
-            MakeCircle(go.transform, stone,                          ctr, Vector2.zero, 70*s);
-            MakeCircle(go.transform, bronzeCol * 0.85f,              ctr, Vector2.zero, 50*s);
-            MakeCircle(go.transform, new Color(0.10f,0.09f,0.11f),   ctr, Vector2.zero, 44*s);
+            MakeCircle(go.transform, stone,                           ctr, Vector2.zero, 70*s);
+            MakeCircle(go.transform, bronzeCol * 0.85f,               ctr, Vector2.zero, 50*s);
+            MakeCircle(go.transform, new Color(0.10f,0.09f,0.11f),    ctr, Vector2.zero, 44*s);
 
             // 中央の回転菱形（系統を表さない統一の宝珠）
             void Diamond(Vector2 center, float sz, Color col)
@@ -1356,5 +1369,38 @@ namespace KiokuNoIseki
             var o = go.AddComponent<Outline>();
             o.effectColor = c; o.effectDistance = new Vector2(3, 3);
         }
-    }
-}
+
+        // ───────── 🎤 ここから音声認識の連動コード ─────────
+        private void OnEnable()
+        {
+            if (engine != null)
+            {
+                engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (engine != null)
+            {
+                engine.OnVoiceAttackRequest -= OnVoiceAttackCommandReceived;
+            }
+        }
+
+        // 🎤 音声で「いけっ」と言われた時に、UI側で実行される攻撃処理
+        private void OnVoiceAttackCommandReceived()
+        {
+            if (selectedAttacker == null)
+            {
+                Debug.Log("❌ [ボイス] 攻撃させたい自分のユニット（対象）が選ばれていません！");
+                return;
+            }
+
+            Debug.Log($"⚔️ [ボイス] {selectedAttacker.definition.trueName} の攻撃準備！対象を選んでください。");
+            mode = Mode.SelectAttackTarget;
+            Redraw(); 
+        }
+        // ───────── 🎤 ここまで音声認識の連動コード ─────────
+
+    } // 💡 GameUIクラスを閉じる
+} // 💡 namespaceを閉じる     

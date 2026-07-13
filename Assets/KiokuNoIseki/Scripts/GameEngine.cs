@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
+using Random = System.Random; 
 
 namespace KiokuNoIseki
 {
@@ -404,7 +406,7 @@ namespace KiokuNoIseki
         }
 
         public void CheckWinConditions()
-        {
+{
             // 通常勝利
             if (players[0].hp <= 0) { result = GameResult.Player1Win; return; }
             if (players[1].hp <= 0) { result = GameResult.Player0Win; return; }
@@ -414,24 +416,52 @@ namespace KiokuNoIseki
                 int full = players[i].memoryZone.Count(c => c.engravingCount >= PactEngraving);
                 if (full >= PactWinCount) { result = i == 0 ? GameResult.Player0Win : GameResult.Player1Win; return; }
             }
-        }
-    }
+        } // 💡 CheckWinConditionsはここで綺麗に閉じます
 
-    // 技発動の集約点（16-2）。タップ（v1）と将来の音声（v2）が共にここを呼ぶ。
+        // ───────── 🎤 音声認識の受け皿（GameEngine内） ─────────
+        
+        // UI側に「いけっ、って言われたから攻撃して！」と伝えるための電波（イベント）
+        public System.Action OnVoiceAttackRequest;
+	public System.Action OnVoiceDirectAttackRequest;
+
+
+        public void ProcessVoiceCommand(string recognizedWord)
+        {
+            // ゲーム進行中、かつ行動フェイズ（Action）の時だけ音声をパスカットする
+            if (result != GameResult.Ongoing || phase != TurnPhase.Action) return;
+
+            if (recognizedWord == "ターンエンド")
+            {
+                Debug.Log("🤖 ボイス：ターンエンドを直接実行します！");
+                EndTurn(); // インスペクターを使わず、メソッドを直接呼び出す
+            }
+            else if (recognizedWord == "いけ")
+            {
+                Debug.Log("🤖 ボイス：攻撃の合図をUIに送ります！");
+                // UI側に電波を飛ばす
+                OnVoiceAttackRequest?.Invoke();
+            }
+// 👇ここから下が新しく追加した部分です👇
+            else if (recognizedWord == "くらえ") 
+            {
+                Debug.Log("🤖 ボイス：リーダーへの直接攻撃の合図を送ります！");
+                // リーダーへ直接攻撃するための電波を飛ばす（※これから作ります）
+                OnVoiceDirectAttackRequest?.Invoke();
+            }
+        }
+    } // 💡 GameEngineクラスの終わり
+
+    // ───────── ⚔️ 技発動の集約点 ─────────
     public static class TechniqueActivator
     {
-        // 戻り値: 発動成功か。失敗理由は reason に。
         public static bool TryActivate(GameEngine game, CardInstance guardian, out string reason)
         {
             reason = null;
             var owner = game.Cur;
-            // 1. 自分の場にいるユニットか
             if (!owner.board.Contains(guardian)) { reason = "自分の場のユニットではない"; return false; }
-            // 2. 自分の行動フェイズか
             if (game.phase != TurnPhase.Action) { reason = "行動フェイズではない"; return false; }
-            // 3. 今ターン未発動か
             if (guardian.techniqueUsedThisTurn) { reason = "このユニットは今ターン技を使用済み"; return false; }
-            // 4. ゲージ充足か（名前の灯篭で-1、最低1）
+            
             int cost = guardian.definition.incantationCost;
             if (owner.HasNameLantern) cost = Math.Max(1, cost - 1);
             if (owner.recallGauge < cost) { reason = "ゲージ不足"; return false; }
@@ -445,5 +475,6 @@ namespace KiokuNoIseki
             game.OnStateChanged?.Invoke();
             return true;
         }
-    }
-}
+    } // TechniqueActivatorの終わり
+} // namespace KiokuNoIsekiの終わり
+       
