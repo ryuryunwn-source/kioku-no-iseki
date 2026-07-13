@@ -302,6 +302,7 @@ namespace KiokuNoIseki.Online
             nm.NetworkConfig = new NetworkConfig { NetworkTransport = utp };
             nm.OnClientConnectedCallback += OnClientConnected;
             nm.OnClientDisconnectCallback += OnClientDisconnected;
+            nm.OnTransportFailure += OnTransportFailure;
             return nm;
         }
 
@@ -314,7 +315,12 @@ namespace KiokuNoIseki.Online
                 EnsureNetworkManager();
 
                 SetStatus("セッション作成中（Relay）...");
-                var options = new SessionOptions { MaxPlayers = 2 }.WithRelayNetwork();
+                // RelayをWSS（Secure WebSocket/TCP443）で確立。既定のDTLS(UDP)を塞ぐ回線
+                // （学校・会社・一部モバイル等）でも接続できるようにする。設定はセッションに
+                // 保存され、参加側も同じプロトコルに追従する。
+                var options = new SessionOptions { MaxPlayers = 2 }
+                    .WithNetworkOptions(new NetworkOptions { RelayProtocol = RelayProtocol.WSS })
+                    .WithRelayNetwork();
                 session = await MultiplayerService.Instance.CreateSessionAsync(options);
 
                 StartNet(asHost: true);
@@ -361,6 +367,14 @@ namespace KiokuNoIseki.Online
         void OnClientDisconnected(ulong clientId)
         {
             SetStatus("対戦相手との接続が切れました。");
+        }
+
+        // Relay/トランスポート障害（UDP遮断・回線不安定など）。無言で固まらないよう通知して後始末する。
+        void OnTransportFailure()
+        {
+            SetStatus("接続に失敗しました（回線がRelayをブロックしている可能性）。\nもう一度ホスト作成／参加をお試しください。");
+            inPlay = false;
+            StopVoice();
         }
 
         void Disconnect()
