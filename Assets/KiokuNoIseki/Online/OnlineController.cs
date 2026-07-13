@@ -321,8 +321,8 @@ namespace KiokuNoIseki.Online
                 // （学校・会社・一部モバイル等）でも接続できるようにする。設定はセッションに
                 // 保存され、参加側も同じプロトコルに追従する。
                 var options = new SessionOptions { MaxPlayers = 2 }
-                    .WithNetworkOptions(new NetworkOptions { RelayProtocol = RelayProtocol.WSS })
-                    .WithRelayNetwork();
+                    .WithRelayNetwork()   // 先にRelayモジュールを登録してから
+                    .WithNetworkOptions(new NetworkOptions { RelayProtocol = RelayProtocol.WSS }); // WSSプロトコルを確定させる
                 session = await MultiplayerService.Instance.CreateSessionAsync(options);
 
                 StartNet(asHost: true);
@@ -345,7 +345,10 @@ namespace KiokuNoIseki.Online
                 EnsureNetworkManager();
 
                 SetStatus("セッションに参加中（Relay）...");
-                session = await MultiplayerService.Instance.JoinSessionByCodeAsync(code);
+                // 参加側もWSSに合わせる（ホストと同じプロトコルでないとRelayデータとTransportが食い違う）
+                var joinOptions = new JoinSessionOptions()
+                    .WithNetworkOptions(new NetworkOptions { RelayProtocol = RelayProtocol.WSS });
+                session = await MultiplayerService.Instance.JoinSessionByCodeAsync(code, joinOptions);
 
                 StartNet(asHost: false);
                 SetStatus("参加しました。対戦開始を待っています…");
