@@ -97,6 +97,118 @@ namespace KiokuNoIseki.Online
             return Font.CreateDynamicFontFromOSFont("Arial", 18);
         }
 
+        // ───────── 🎤 オンライン音声操作（Windows専用・対戦中のみ有効） ─────────
+        public static OnlineController Instance => s_instance;
+        public bool IsOnlineMatchActive => inPlay && net != null && net.LatestView != null;
+
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        UnityEngine.Windows.Speech.KeywordRecognizer voiceRecognizer;
+        string pendingVoice;
+        readonly object voiceLock = new object();
+
+        void Update()
+        {
+            string cmd = null;
+            lock (voiceLock) { if (!string.IsNullOrEmpty(pendingVoice)) { cmd = pendingVoice; pendingVoice = null; } }
+            if (cmd != null) HandleVoice(cmd);
+        }
+
+        void OnDestroy() { StopVoice(); }
+#endif
+
+        // 対戦開始時に起動／終了時に停止（二重起動はガード）。
+        void StartVoice()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            if (voiceRecognizer != null) return;
+            voiceRecognizer = new UnityEngine.Windows.Speech.KeywordRecognizer(
+                new[] { "いけっ", "いけ", "くらえ", "ターンエンド" });
+            voiceRecognizer.OnPhraseRecognized += a => { lock (voiceLock) { pendingVoice = a.text; } };
+            voiceRecognizer.Start();
+            Debug.Log("🎤 オンライン音声認識を起動しました。");
+#endif
+        }
+
+        void StopVoice()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            if (voiceRecognizer == null) return;
+            if (voiceRecognizer.IsRunning) voiceRecognizer.Stop();
+            voiceRecognizer.Dispose();
+            voiceRecognizer = null;
+#endif
+        }
+
+        // 認識した語を対戦操作へ（対戦中・自分の行動フェイズのみ実行）。
+        void HandleVoice(string cmd)
+        {
+            if (!IsOnlineMatchActive) return;
+            switch (cmd)
+            {
+                case "ターンエンド": VoiceEndTurn(); break;
+                case "くらえ":       VoiceDirectAttack(); break;
+                case "いけっ":
+                case "いけ":         VoiceAttack(); break;
+            }
+        }
+
+        bool VoiceReady(out GameView v)
+        {
+            v = net != null ? net.LatestView : null;
+            return inPlay && v != null && v.myTurn && v.result == 0 && v.phase == (int)TurnPhase.Action;
+        }
+
+        bool HasFoeGuard(GameView v)
+        {
+            foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) return true; }
+            return false;
+        }
+
+        // 選択中が有効ならそれ。なければ召喚酔いでない自分のモンスターを先頭から採用。
+        int ResolveVoiceAttacker(GameView v)
+        {
+            if (selectedIid != 0)
+                foreach (var c in v.me.board) if (c.iid == selectedIid && !c.sick) return selectedIid;
+            foreach (var c in v.me.board) if (!c.sick) return c.iid;
+            return 0;
+        }
+
+        // 「ターンエンド」：手番を終える。
+        public void VoiceEndTurn()
+        {
+            if (!VoiceReady(out _)) return;
+            Submit(NetActionType.EndTurn, 0);
+            RedrawPlay();
+            Debug.Log("🎤 ターンエンド");
+        }
+
+        // 「いけっ」：相手モンスター（守護優先）へ攻撃。相手モンスターがいなければ本体へ。
+        public void VoiceAttack()
+        {
+            if (!VoiceReady(out var v)) return;
+            int attacker = ResolveVoiceAttacker(v);
+            if (attacker == 0) { Debug.Log("🎤 攻撃できるモンスターがいません。"); return; }
+            int target = 0; // 既定=本体
+            foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) { target = cv.iid; break; } }
+            if (target == 0 && v.foe.board.Length > 0) target = v.foe.board[0].iid;
+            Submit(NetActionType.Attack, attacker, target);
+            RedrawPlay();
+            Debug.Log($"🎤 攻撃 iid={attacker} → {target}");
+        }
+
+        // 「くらえ」：本体を直接攻撃（守護がいると不可）。
+        public void VoiceDirectAttack()
+        {
+            if (!VoiceReady(out var v)) return;
+            if (HasFoeGuard(v)) { Debug.Log("🎤 守護がいるため本体を攻撃できません。"); return; }
+            int attacker = ResolveVoiceAttacker(v);
+            if (attacker == 0) { Debug.Log("🎤 攻撃できるモンスターがいません。"); return; }
+            Submit(NetActionType.Attack, attacker, 0);
+            RedrawPlay();
+            Debug.Log($"🎤 本体攻撃 iid={attacker}");
+        }
+        // ───────── 🎤 ここまで ─────────
+
         // ───────── メニュー表示 ─────────
         public void ShowMenu()
         {
@@ -254,6 +366,7 @@ namespace KiokuNoIseki.Online
         void Disconnect()
         {
             inPlay = false;
+            StopVoice(); // 対戦終了で音声認識を停止
             if (net != null) { net.Shutdown(); net = null; }
             session = null;
             var nm = NetworkManager.Singleton;
@@ -289,6 +402,7 @@ namespace KiokuNoIseki.Online
         {
             if (net != null && net.LatestView != null) RegisterGen(net.LatestView.genCards);
             inPlay = true;
+            StartVoice(); // 対戦画面に入ったら音声認識を起動（Windowsのみ・二重起動ガード）
             pmode = PMode.Normal; selectedIid = 0; pendingSpellIid = 0;
             RedrawPlay();
         }
