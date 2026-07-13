@@ -299,6 +299,7 @@ namespace KiokuNoIseki.Online
             Object.DontDestroyOnLoad(go);
             var nm = go.AddComponent<NetworkManager>();
             var utp = go.AddComponent<UnityTransport>();
+            utp.UseWebSockets = true; // RelayをWSSで確立するため、Transport側もWebSocketを有効化（必須）
             nm.NetworkConfig = new NetworkConfig { NetworkTransport = utp };
             nm.OnClientConnectedCallback += OnClientConnected;
             nm.OnClientDisconnectCallback += OnClientDisconnected;
