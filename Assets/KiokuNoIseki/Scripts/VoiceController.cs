@@ -11,6 +11,16 @@ public class VoiceController : MonoBehaviour
     private readonly object lockObject = new object();
     private bool isProcessing = false;
 
+    // シーンに手動配置していなくても必ず起動するよう自動生成する（GameUI/OnlineControllerと同じ方式）。
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    static void Bootstrap()
+    {
+        if (Object.FindFirstObjectByType<VoiceController>() != null) return;
+        var go = new GameObject("KiokuNoIseki_Voice");
+        Object.DontDestroyOnLoad(go);
+        go.AddComponent<VoiceController>();
+    }
+
     void Start()
     {
         if (gameEngine == null)
@@ -19,16 +29,25 @@ public class VoiceController : MonoBehaviour
             if (gameUI != null) gameEngine = gameUI.engine;
         }
 
-        string[] keywords = { "いけっ", "くらえ", "ターンエンド" };
-        recognizer = new KeywordRecognizer(keywords);
-        recognizer.OnPhraseRecognized += (args) => {
-            lock (lockObject)
-            {
-                requestedCommand = args.text;
-            }
-        };
-        recognizer.Start();
-        Debug.Log("🎤 音声認識システムが起動しました！");
+        string[] keywords = { "いけっ", "いけ", "くらえ", "ターンエンド" };
+        try
+        {
+            recognizer = new KeywordRecognizer(keywords);
+            recognizer.OnPhraseRecognized += (args) => {
+                lock (lockObject)
+                {
+                    requestedCommand = args.text;
+                }
+                Debug.Log($"🎤 認識: 「{args.text}」（信頼度 {args.confidence}）");
+            };
+            recognizer.Start();
+            Debug.Log("🎤 音声認識システムが起動しました！（マイクに向かって「いけっ」「くらえ」「ターンエンド」）");
+        }
+        catch (System.Exception e)
+        {
+            // 日本語の音声認識パックが未インストール等でKeywordRecognizerが作れないことがある。
+            Debug.LogError("🎤 音声認識の起動に失敗しました。Windowsの『音声認識(日本語)』が有効か確認してください。\n詳細: " + e.Message);
+        }
     }
 
     void Update()

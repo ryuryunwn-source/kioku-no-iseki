@@ -438,7 +438,7 @@ namespace KiokuNoIseki
                 Debug.Log("🤖 ボイス：ターンエンドを直接実行します！");
                 EndTurn(); // インスペクターを使わず、メソッドを直接呼び出す
             }
-            else if (recognizedWord == "いけ")
+            else if (recognizedWord == "いけ" || recognizedWord == "いけっ")
             {
                 Debug.Log("🤖 ボイス：攻撃の合図をUIに送ります！");
                 // UI側に電波を飛ばす
