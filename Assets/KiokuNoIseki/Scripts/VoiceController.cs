@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Windows.Speech;
+using UnityEngine.InputSystem;
 using System.Collections;
 using KiokuNoIseki;
 
@@ -28,6 +29,13 @@ public class VoiceController : MonoBehaviour
             var gameUI = Object.FindFirstObjectByType<GameUI>();
             if (gameUI != null) gameEngine = gameUI.engine;
         }
+
+        // Unityがマイクを認識しているか診断（0台ならマイク未接続/権限なし）
+        var mics = Microphone.devices;
+        if (mics == null || mics.Length == 0)
+            Debug.LogError("🎤 マイクが1台も検出されていません。接続とWindowsのマイク権限を確認してください。");
+        else
+            Debug.Log($"🎤 検出マイク {mics.Length}台: {string.Join(", ", mics)}");
 
         string[] keywords = { "いけっ", "いけ", "くらえ", "ターンエンド" };
         try
@@ -59,6 +67,16 @@ public class VoiceController : MonoBehaviour
 
     void Update()
     {
+        // ── キーボードによる代替入力（音声が不調でも動作確認・発表できる保険）──
+        // V=「いけっ」(攻撃)  B=「くらえ」(本体直接)  N=「ターンエンド」
+        var kb = Keyboard.current;
+        if (kb != null)
+        {
+            if (kb.vKey.wasPressedThisFrame) lock (lockObject) requestedCommand = "いけっ";
+            if (kb.bKey.wasPressedThisFrame) lock (lockObject) requestedCommand = "くらえ";
+            if (kb.nKey.wasPressedThisFrame) lock (lockObject) requestedCommand = "ターンエンド";
+        }
+
         string commandToProcess = null;
         lock (lockObject)
         {
@@ -77,11 +95,9 @@ public class VoiceController : MonoBehaviour
 
     private IEnumerator SafeProcessCommand(string command)
     {
-        if (gameEngine == null)
-        {
-            var gameUI = Object.FindFirstObjectByType<GameUI>();
-            if (gameUI != null) gameEngine = gameUI.engine;
-        }
+        // 毎回、現在進行中の対戦エンジンを取り直す（対戦をやり直すと新しいエンジンになるため）
+        var gameUI = Object.FindFirstObjectByType<GameUI>();
+        if (gameUI != null && gameUI.engine != null) gameEngine = gameUI.engine;
 
         if (gameEngine == null) yield break;
 
