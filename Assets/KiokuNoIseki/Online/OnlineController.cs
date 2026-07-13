@@ -313,6 +313,7 @@ namespace KiokuNoIseki.Online
             {
                 SetStatus("初期化・サインイン中...");
                 await InitServicesAsync();
+                CleanupNet();           // 前回の接続状態を破棄してまっさらに
                 EnsureNetworkManager();
 
                 SetStatus("セッション作成中（Relay）...");
@@ -340,6 +341,7 @@ namespace KiokuNoIseki.Online
             {
                 SetStatus("初期化・サインイン中...");
                 await InitServicesAsync();
+                CleanupNet();           // 前回の接続状態を破棄してまっさらに
                 EnsureNetworkManager();
 
                 SetStatus("セッションに参加中（Relay）...");
@@ -380,13 +382,26 @@ namespace KiokuNoIseki.Online
 
         void Disconnect()
         {
-            inPlay = false;
-            StopVoice(); // 対戦終了で音声認識を停止
-            if (net != null) { net.Shutdown(); net = null; }
             session = null;
+            CleanupNet();
+        }
+
+        // 接続状態を完全に破棄し、次の接続を必ずまっさらな NetworkManager で始められるようにする。
+        // （前回の接続で残った Transport/driver 設定=UDP/WSS が次回と食い違うのを防ぐ）
+        void CleanupNet()
+        {
+            inPlay = false;
+            StopVoice();
+            if (net != null) { net.Shutdown(); net = null; }
             var nm = NetworkManager.Singleton;
-            if (nm != null && (nm.IsListening || nm.IsClient || nm.IsServer))
-                nm.Shutdown();
+            if (nm != null)
+            {
+                if (nm.IsListening || nm.IsClient || nm.IsServer) nm.Shutdown();
+                nm.OnClientConnectedCallback -= OnClientConnected;
+                nm.OnClientDisconnectCallback -= OnClientDisconnected;
+                nm.OnTransportFailure -= OnTransportFailure;
+                Object.DestroyImmediate(nm.gameObject);
+            }
         }
 
         // ───────── 対戦同期（NetGame）─────────
