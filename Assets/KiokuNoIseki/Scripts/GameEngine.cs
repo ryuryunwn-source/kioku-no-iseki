@@ -50,17 +50,17 @@ namespace KiokuNoIseki
     // ゲーム全体の進行と行動。Human/AIどちらも GameActions を呼ぶ（17-1）
     public class GameEngine
     {
-        // ── 古き盟約のバランス調整パラメータ（バランスシミュレーターで探索する） ──
-        // 刻印がこの数に達した守護者が破壊されると記憶領域へ（＝完全刻印）。
+        // ── 殿堂のバランス調整パラメータ（バランスシミュレーターで探索する） ──
+        // 刻印がこの数に達したモンスターが破壊されると殿堂へ（＝完全刻印）。
         public static int MemoryEntryEngraving = 4;
-        // 記憶領域にこの体数が集まると盟約勝利（バランス調整で3→2）。
+        // 殿堂にこの体数が集まると殿堂勝利（バランス調整で3→2）。
         public static int PactWinCount = 2;
-        // 記憶領域入りしたカードが持つ刻印数（＝盟約カウント対象の閾値）。
+        // 殿堂入りしたカードが持つ刻印数（＝殿堂カウント対象の閾値）。
         public static int PactEngraving => MemoryEntryEngraving - 1;
         // 盤面で1ターン生き延びるごとに得る刻印（自分で狙える成熟経路。守護で守る価値も上がる）。
         public static int EngraveOnSurvive = 1;
-        // 完全刻印の守護者が破壊されたら記憶領域へ。
-        // true=持ち主の記憶領域（自分で盟約を狙える）／false=破壊した側（従来）。
+        // 完全刻印のモンスターが破壊されたら殿堂へ。
+        // true=持ち主の殿堂（自分で殿堂を狙える）／false=破壊した側（従来）。
         public static bool BankToOwner = true;
 
         public RecallerState[] players = new RecallerState[2];
@@ -74,8 +74,8 @@ namespace KiokuNoIseki
         public RecallerState Cur => players[currentPlayer];
         public RecallerState Opp => players[1 - currentPlayer];
 
-        // 【v2】デッキに合流させる写し身（両者ぶんまとめて）。null/空なら固定48枚のまま。
-        // 与えた写し身の枚数だけ、固定守護者(30枚のうち)をランダムに置き換える（5章・13章末尾の方針）。
+        // 【v2】デッキに合流させるマイモン（両者ぶんまとめて）。null/空なら固定48枚のまま。
+        // 与えたマイモンの枚数だけ、固定モンスター(30枚のうち)をランダムに置き換える（5章・13章末尾の方針）。
         public List<CardInstance> injectedWriteshi;
 
         // UIへ通知するログ
@@ -98,7 +98,7 @@ namespace KiokuNoIseki
             deck = new RuinsDeck(rng);
             var defs = CardDatabase.BuildDeckDefinitions();
 
-            // 写し身の差し替え：与えた枚数だけ固定守護者をランダムに除外し、写し身を代わりに入れる。
+            // マイモンの差し替え：与えた枚数だけ固定モンスターをランダムに除外し、マイモンを代わりに入れる。
             int replace = 0;
             HashSet<CardData> removed = null;
             if (injectedWriteshi != null && injectedWriteshi.Count > 0)
@@ -109,7 +109,7 @@ namespace KiokuNoIseki
                     defs.Where(d => d.kind == CardKind.Guardian)
                         .OrderBy(_ => rng.Next())
                         .Take(replace));
-                Log($"写し身 {replace} 体が固定守護者と置き換わってデッキに合流した。");
+                Log($"マイモン {replace} 体が固定モンスターと置き換わってデッキに合流した。");
             }
 
             foreach (var def in defs)
@@ -209,7 +209,7 @@ namespace KiokuNoIseki
             if (deck.Count > 0) return;
             // デッキ枯渇勝利（11章）
             int m0 = players[0].memoryZone.Count, m1 = players[1].memoryZone.Count;
-            Log("デッキが尽きた。記憶領域の枚数を比較する。");
+            Log("デッキが尽きた。殿堂の枚数を比較する。");
             if (m0 != m1) result = m0 > m1 ? GameResult.Player0Win : GameResult.Player1Win;
             else result = players[0].hp >= players[1].hp ? GameResult.Player0Win : GameResult.Player1Win;
             OnStateChanged?.Invoke();
@@ -234,7 +234,7 @@ namespace KiokuNoIseki
             return true;
         }
 
-        // カードをプレイ（7-4）。chosenTarget は魔法の手動指定対象（守護者プレイ時は無視）
+        // カードをプレイ（7-4）。chosenTarget は魔法の手動指定対象（モンスタープレイ時は無視）
         public bool PlayCard(CardInstance card, CardInstance chosenTarget = null)
         {
             if (result != GameResult.Ongoing || phase != TurnPhase.Action) return false;
@@ -252,7 +252,7 @@ namespace KiokuNoIseki
                     card.attackedThisTurn = false;
                     card.techniqueUsedThisTurn = false;
                     p.board.Add(card);
-                    Log($"{p.name}: 守護者「{card.definition.trueName}」を召喚。");
+                    Log($"{p.name}: モンスター「{card.definition.trueName}」を召喚。");
                     break;
 
                 case CardKind.Cornerstone:
@@ -326,7 +326,7 @@ namespace KiokuNoIseki
             if (!owner.board.Contains(card)) return;
             owner.board.Remove(card);
 
-            // 瓦礫の砦：自分の守護者が破壊されるたび、相手に1ダメージ
+            // 瓦礫の砦：自分のモンスターが破壊されるたび、相手に1ダメージ
             if (owner.HasFortThorn && byOpponent != null)
             {
                 byOpponent.hp -= 1;
@@ -349,14 +349,14 @@ namespace KiokuNoIseki
             card.techniqueUsedThisTurn = false;
             card.attackedThisTurn = false;
 
-            // 記憶領域入りの受け手：持ち主 or 破壊側（パラメータで切替）
+            // 殿堂入りの受け手：持ち主 or 破壊側（パラメータで切替）
             var banker = BankToOwner ? owner : destroyer;
             if (card.engravingCount >= MemoryEntryEngraving && banker != null)
             {
-                // 完全刻印に達した後の破壊→記憶領域へ（11章 古き盟約用）
+                // 完全刻印に達した後の破壊→殿堂へ（11章 殿堂用）
                 card.engravingCount = PactEngraving;
                 banker.memoryZone.Add(card);
-                Log($"「{card.definition.trueName}」(完全刻印) が {banker.name} の記憶領域へ。");
+                Log($"「{card.definition.trueName}」(完全刻印) が {banker.name} の殿堂へ。");
             }
             else
             {
@@ -372,7 +372,7 @@ namespace KiokuNoIseki
             phase = TurnPhase.End;
             var p = Cur;
 
-            // 生存刻印：盤面で生き延びた守護者が刻印を蓄積する（自分で狙える成熟経路）
+            // 生存刻印：盤面で生き延びたモンスターが刻印を蓄積する（自分で狙える成熟経路）
             if (EngraveOnSurvive > 0)
                 foreach (var c in p.board)
                     if (!c.summoningSick) c.engravingCount += EngraveOnSurvive;
@@ -413,7 +413,7 @@ namespace KiokuNoIseki
             // 通常勝利
             if (players[0].hp <= 0) { result = GameResult.Player1Win; return; }
             if (players[1].hp <= 0) { result = GameResult.Player0Win; return; }
-            // 古き盟約勝利：完全刻印が記憶領域に PactWinCount 体
+            // 殿堂勝利：完全刻印が殿堂に PactWinCount 体
             for (int i = 0; i < 2; i++)
             {
                 int full = players[i].memoryZone.Count(c => c.engravingCount >= PactEngraving);
@@ -461,9 +461,9 @@ namespace KiokuNoIseki
         {
             reason = null;
             var owner = game.Cur;
-            if (!owner.board.Contains(guardian)) { reason = "自分の場の守護者ではない"; return false; }
+            if (!owner.board.Contains(guardian)) { reason = "自分の場のモンスターではない"; return false; }
             if (game.phase != TurnPhase.Action) { reason = "行動フェイズではない"; return false; }
-            if (guardian.techniqueUsedThisTurn) { reason = "この守護者は今ターン技を使用済み"; return false; }
+            if (guardian.techniqueUsedThisTurn) { reason = "このモンスターは今ターン技を使用済み"; return false; }
             
             int cost = guardian.definition.incantationCost;
             if (owner.HasNameLantern) cost = Math.Max(1, cost - 1);

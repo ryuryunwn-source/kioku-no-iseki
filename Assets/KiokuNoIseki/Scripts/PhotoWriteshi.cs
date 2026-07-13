@@ -3,13 +3,13 @@ using UnityEngine;
 
 namespace KiokuNoIseki
 {
-    // 写真(Texture2D)から写し身(CardInstance)を組み立てる橋渡し役。
+    // 写真(Texture2D)からマイモン(CardInstance)を組み立てる橋渡し役。
     // ・画像から決定論的ハッシュと平均HSVを算出（→CardGeneratorへ）
     // ・写真をSpriteにしてGeneratedArtへ登録（→対戦画面で表示）
-    // ・生成した写し身は WriteshiCollection に貯め、対戦開始時にデッキへ合流する。
+    // ・生成したマイモンは WriteshiCollection に貯め、対戦開始時にデッキへ合流する。
     public static class PhotoWriteshi
     {
-        // 写真 + （任意の）AI命名結果から写し身を作る。名前がnull/空ならオフライン候補で決定論的に命名。
+        // 写真 + （任意の）AI命名結果からマイモンを作る。名前がnull/空ならオフライン候補で決定論的に命名。
         public static CardInstance Build(Texture2D tex, string trueName = null, string techniqueName = null)
         {
             if (tex == null) return null;
@@ -66,7 +66,7 @@ namespace KiokuNoIseki
         }
     }
 
-    // 端末内で生成した写し身の一時コレクション（対戦開始時にデッキへ渡す）。
+    // 端末内で生成したマイモンの一時コレクション（対戦開始時にデッキへ渡す）。
     // ※実行時のみ保持（永続保存は将来の拡張。15章のキャッシュ相当）。
     public static class WriteshiCollection
     {

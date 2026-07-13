@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace KiokuNoIseki
 {
-    // 写し身（gen_ で始まるカードID）の写真スプライトを実行時に保持する登録簿。
-    // Resources に画像が無い写し身の描画で、GetCardArt がここを最初に参照する。
+    // マイモン（gen_ で始まるカードID）の写真スプライトを実行時に保持する登録簿。
+    // Resources に画像が無いマイモンの描画で、GetCardArt がここを最初に参照する。
     public static class GeneratedArt
     {
         static readonly Dictionary<string, Sprite> s_map = new Dictionary<string, Sprite>();

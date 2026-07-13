@@ -4,9 +4,9 @@ using KiokuNoIseki;
 
 namespace KiokuNoIseki.Online
 {
-    // 【v2】写し身の同期用。写真そのものは送らず、生成された結果（合成CardData相当）だけを載せる（18-4）。
+    // 【v2】マイモンの同期用。写真そのものは送らず、生成された結果（合成CardData相当）だけを載せる（18-4）。
     // カードIDは画像ハッシュから決定論的なので、受信側は自分が同じ写真を持っていれば実画像で描画でき、
-    // 相手の写し身はプレースホルダ画像になる（写真は端末外に出ない）。
+    // 相手のマイモンはプレースホルダ画像になる（写真は端末外に出ない）。
     [Serializable]
     public class GenCardInfo
     {
@@ -24,7 +24,7 @@ namespace KiokuNoIseki.Online
         public CardData ToCardData() => new CardData
         {
             id = cardId,
-            trueName = string.IsNullOrEmpty(name) ? "写し身" : name,
+            trueName = string.IsNullOrEmpty(name) ? "マイモン" : name,
             kind = CardKind.Guardian,
             element = (Element)elem,
             cost = cost,
@@ -46,7 +46,7 @@ namespace KiokuNoIseki.Online
         };
     }
 
-    // JsonUtility はトップレベル配列を扱えないためラップする（client→hostの写し身送信に使用）。
+    // JsonUtility はトップレベル配列を扱えないためラップする（client→hostのマイモン送信に使用）。
     [Serializable]
     public class GenCardList
     {
@@ -78,7 +78,7 @@ namespace KiokuNoIseki.Online
         public int gauge;
         public int gaugeMax;
         public int memoryCount;
-        public int pactCount;   // 完全刻印(刻印3)が記憶領域に何体か（盟約進捗・公開情報）
+        public int pactCount;   // 完全刻印(刻印3)が殿堂に何体か（殿堂進捗・公開情報）
         public int rubble;
         public CardView[] hand = Array.Empty<CardView>();
         public CardView[] board = Array.Empty<CardView>();
@@ -97,7 +97,7 @@ namespace KiokuNoIseki.Online
         public bool myTurn;     // 受信者の手番か
         public int result;      // 0=継続 / 1=自分の勝ち / 2=相手の勝ち
         public string[] log = Array.Empty<string>();
-        // このビューに写っている写し身の定義情報（受信側が名前/技/系統を復元して描画する）。写真は含まない。
+        // このビューに写っているマイモンの定義情報（受信側が名前/技/系統を復元して描画する）。写真は含まない。
         public GenCardInfo[] genCards = Array.Empty<GenCardInfo>();
     }
 
@@ -108,7 +108,7 @@ namespace KiokuNoIseki.Online
     public class NetAction
     {
         public int type;   // NetActionType
-        public int a;      // 主対象のインスタンスID（手札カード/攻撃元/守護者/捧げる手札）
+        public int a;      // 主対象のインスタンスID（手札カード/攻撃元/モンスター/捧げる手札）
         public int b;      // 副対象のインスタンスID（攻撃先=0で本体／魔法の対象。未使用は0）
     }
 

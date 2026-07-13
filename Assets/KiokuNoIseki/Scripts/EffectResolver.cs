@@ -50,7 +50,7 @@ namespace KiokuNoIseki
                         t.damageTaken += mag;
                         g.ResolveDestruction(opp, t, self);
                     }
-                    Log(g, $"相手の守護者全体に{mag}ダメージ。");
+                    Log(g, $"相手のモンスター全体に{mag}ダメージ。");
                     break;
                 }
 
@@ -200,7 +200,7 @@ namespace KiokuNoIseki
                 case EffectId.ReturnMemoryToDeck:
                 {
                     var t = self.memoryZone.FirstOrDefault();
-                    if (t != null) { self.memoryZone.Remove(t); g.deck.ReturnToRandomPosition(t); Log(g, $"記憶領域の「{t.definition.trueName}」をデッキへ戻した。"); }
+                    if (t != null) { self.memoryZone.Remove(t); g.deck.ReturnToRandomPosition(t); Log(g, $"殿堂の「{t.definition.trueName}」をデッキへ戻した。"); }
                     break;
                 }
             }

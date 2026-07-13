@@ -18,30 +18,30 @@ namespace KiokuNoIseki
         SelfDefenseBuffTurn,        // 自身の防御力を今ターン+mag
         SelfAttackBuffPerm,         // 自身の攻撃力を永続+mag
         SelfDefenseBuffPerm,        // 自身の防御力を永続+mag
-        DamageLowestDefEnemyOrFace, // 相手の防御力最小の守護者にmag。いなければ相手本体にmag
-        DamageAllEnemyGuardians,    // 相手の場の守護者全体にmag
-        DebuffHighestAtkTurn,       // 相手の攻撃力最大の守護者を今ターン-mag
-        DebuffHighestAtkPerm,       // 相手の攻撃力最大の守護者を永続-mag
+        DamageLowestDefEnemyOrFace, // 相手の防御力最小のモンスターにmag。いなければ相手本体にmag
+        DamageAllEnemyGuardians,    // 相手の場のモンスター全体にmag
+        DebuffHighestAtkTurn,       // 相手の攻撃力最大のモンスターを今ターン-mag
+        DebuffHighestAtkPerm,       // 相手の攻撃力最大のモンスターを永続-mag
         DebuffAllEnemyAtkTurn,      // 相手の場全体の攻撃力を今ターン-mag
-        BuffLowestDefAllyPerm,      // 自分の防御力最小の守護者の防御力を永続+mag
+        BuffLowestDefAllyPerm,      // 自分の防御力最小のモンスターの防御力を永続+mag
         BuffAllAllyDefPerm,         // 自分の場全体の防御力を永続+mag
         BuffAllAllyAtkPerm,         // 自分の場全体の攻撃力を永続+mag
         BuffAllAllyAtkDefPerm,      // 自分の場全体の攻撃力・防御力を永続+mag
         HealHP,                     // 自分のHPをmag回復
         GainGauge,                  // 自分のゲージを+mag（上限超えない）
         DrainEnemyGauge,            // 相手のゲージを-mag（最低0）
-        RemoveSicknessAlly,         // 自分の守護者1体の召喚酔いを解除（自動対象=最も攻撃力が高い召喚酔い）
-        DamageEnemyGuardian,        // 相手の守護者1体にmag（自動対象=攻撃力最大）
-        DestroyEnemyGuardian,       // 相手の守護者1体を破壊（自動対象=攻撃力最大、転生処理）
-        EngraveAlly,                // 自分の守護者1体に刻印+1（自動対象=攻撃力最大）
+        RemoveSicknessAlly,         // 自分のモンスター1体の召喚酔いを解除（自動対象=最も攻撃力が高い召喚酔い）
+        DamageEnemyGuardian,        // 相手のモンスター1体にmag（自動対象=攻撃力最大）
+        DestroyEnemyGuardian,       // 相手のモンスター1体を破壊（自動対象=攻撃力最大、転生処理）
+        EngraveAlly,                // 自分のモンスター1体に刻印+1（自動対象=攻撃力最大）
         ExtraExcavate,             // 追加1枚ドロー（このターン手札上限-1）
         SacrificeForRubble,         // (廃止予定・未使用) 旧:手札1枚を捧げ瓦礫mag個
-        SacrificeForBurn,           // 手札1枚(最安)を代償に捧げ、相手の防御最小の守護者か本体にmagダメージ
+        SacrificeForBurn,           // 手札1枚(最安)を代償に捧げ、相手の防御最小のモンスターか本体にmagダメージ
         DrawCard,                   // デッキからmag枚ドローする
         ScryReorder,                // デッキ上mag枚を見て並べ替え（AIは現状維持・人間も自動）
         DigSelectNext,              // 次のドローで上3枚から1枚選択（自動=最もコストが高いカード）
         ResetWeathering,            // 手札1枚の劣化を0に（自動=最も劣化が進んだ手札）
-        ReturnMemoryToDeck,         // 記憶領域のカード1枚をデッキへ戻す（自動=任意1枚）
+        ReturnMemoryToDeck,         // 殿堂のカード1枚をデッキへ戻す（自動=任意1枚）
     }
 
     // カード静的データ（ScriptableObjectの代わりにコード定義。19章CardDefinition相当）
@@ -57,7 +57,7 @@ namespace KiokuNoIseki
         public bool guard;          // 守護：場にいる間、相手は本体(HP)を直接攻撃できない
         public string effectText;
 
-        // 守護者の技
+        // モンスターの技
         public int incantationCost;
         public string techniqueName;
         public EffectId techniqueEffect;
@@ -77,7 +77,7 @@ namespace KiokuNoIseki
     public class CardInstance
     {
         public CardData definition;
-        // 【v2】写し身の場合に元データを保持（19章）。固定カードでは常にnull。
+        // 【v2】マイモンの場合に元データを保持（19章）。固定カードでは常にnull。
         // definition は generated.ToCardData() の合成データを指すため、エンジンは両者を区別せず扱える。
         public GeneratedGuardianData generated;
         public int weatheringCounter;
@@ -99,7 +99,7 @@ namespace KiokuNoIseki
         public readonly int instanceId;
         static int s_next = 1;
         public CardInstance(CardData def) { definition = def; instanceId = s_next++; }
-        // 写し身インスタンス：合成CardDataをdefinitionに、元データをgeneratedに保持
+        // マイモンインスタンス：合成CardDataをdefinitionに、元データをgeneratedに保持
         public CardInstance(GeneratedGuardianData gen) : this(gen.ToCardData()) { generated = gen; }
 
         public bool IsGuardian => definition.kind == CardKind.Guardian;
@@ -130,9 +130,9 @@ namespace KiokuNoIseki
         public int recallGauge = 2;
         public int recallGaugeMax = 2;
         public List<CardInstance> hand = new List<CardInstance>();
-        public List<CardInstance> board = new List<CardInstance>();        // 守護者ゾーン×5
+        public List<CardInstance> board = new List<CardInstance>();        // モンスターゾーン×5
         public List<CardInstance> cornerstones = new List<CardInstance>(); // 魔法石ゾーン×3
-        public List<CardInstance> memoryZone = new List<CardInstance>();   // 記憶領域
+        public List<CardInstance> memoryZone = new List<CardInstance>();   // 殿堂
         public int rubbleTokens;
 
         // ターン状態フラグ
@@ -150,7 +150,7 @@ namespace KiokuNoIseki
         public bool HasShrineAltar;     // 記憶の祭壇：生贄上昇量+1
         public bool HasSanctuary;       // 忘れられし聖堂：劣化猶予+1ターン
         public bool HasNameLantern;     // 名前の灯篭：詠唱コスト-1
-        public bool HasFortThorn;       // 瓦礫の砦：自分の守護者が破壊されるたび相手に1ダメージ
+        public bool HasFortThorn;       // 瓦礫の砦：自分のモンスターが破壊されるたび相手に1ダメージ
 
         bool HasCornerstone(EffectId e) => false;
 

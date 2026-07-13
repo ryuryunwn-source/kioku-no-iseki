@@ -27,7 +27,7 @@ namespace KiokuNoIseki
                 break;
             }
 
-            // 6. 攻撃可能な守護者を全て攻撃させる
+            // 6. 攻撃可能なモンスターを全て攻撃させる
             DoAttacks(g, self, opp);
 
             if (g.result == GameResult.Ongoing) g.EndTurn();
@@ -51,7 +51,7 @@ namespace KiokuNoIseki
                 if (TechniqueActivator.TryActivate(g, gd, out _)) return true;
             }
 
-            // 3. 今出せる最もコストの高い守護者を出す
+            // 3. 今出せる最もコストの高いモンスターを出す
             var bestGuardian = self.hand
                 .Where(c => c.definition.kind == CardKind.Guardian && c.definition.cost <= self.recallGauge)
                 .OrderByDescending(c => c.definition.cost).FirstOrDefault();
@@ -81,7 +81,7 @@ namespace KiokuNoIseki
             foreach (var a in attackers)
             {
                 if (g.result != GameResult.Ongoing) return;
-                // 撃破できる相手守護者を優先
+                // 撃破できる相手モンスターを優先
                 var killable = opp.board
                     .Where(t => t.RemainingDefense <= a.CurrentAttack)
                     .OrderByDescending(t => t.CurrentAttack).FirstOrDefault();

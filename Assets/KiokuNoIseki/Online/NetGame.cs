@@ -17,7 +17,7 @@ namespace KiokuNoIseki.Online
 
         const string MSG_STATE = "KI_State";
         const string MSG_ACTION = "KI_Action";
-        const string MSG_WRITESHI = "KI_Writeshi";  // client→host：自分の写し身（写真なし）
+        const string MSG_WRITESHI = "KI_Writeshi";  // client→host：自分のマイモン（写真なし）
 
         readonly List<GenCardInfo> clientWriteshi = new List<GenCardInfo>();
         bool clientWriteshiReceived;
@@ -52,7 +52,7 @@ namespace KiokuNoIseki.Online
             if (NM.IsConnectedClient) SendWriteshi();
         }
 
-        // クライアント：自分の接続確立時に、自分の写し身（写真なし）をホストへ送る。
+        // クライアント：自分の接続確立時に、自分のマイモン（写真なし）をホストへ送る。
         void OnLocalConnectedClient(ulong clientId)
         {
             if (clientId != NM.LocalClientId) return;
@@ -70,7 +70,7 @@ namespace KiokuNoIseki.Online
                 Encoding.UTF8.GetBytes(UnityEngine.JsonUtility.ToJson(wrap)), NetworkDelivery.Reliable);
         }
 
-        // ホスト：クライアントの写し身を受信 → 記録して開始判定
+        // ホスト：クライアントのマイモンを受信 → 記録して開始判定
         void OnWriteshiReceivedHost(ulong sender, FastBufferReader reader)
         {
             var wrap = UnityEngine.JsonUtility.FromJson<GenCardList>(Encoding.UTF8.GetString(ReadBytes(reader)));
@@ -108,13 +108,13 @@ namespace KiokuNoIseki.Online
         {
             if (engine != null) return;
             if (NM.ConnectedClientsIds.Count < 2) return; // ホスト＋参加者の2人が必要
-            if (!clientWriteshiReceived) return;          // 参加者の写し身（空でも可）を受け取ってから開始
+            if (!clientWriteshiReceived) return;          // 参加者のマイモン（空でも可）を受け取ってから開始
 
             engine = new GameEngine();
             engine.OnLog += s => { hostLog.Add(s); while (hostLog.Count > 8) hostLog.RemoveAt(0); };
             engine.OnStateChanged += BroadcastAll;
 
-            // 両者の写し身をデッキに合流させる（写真はホストには送られていない＝相手のは画像なし）。
+            // 両者のマイモンをデッキに合流させる（写真はホストには送られていない＝相手のは画像なし）。
             var injected = new List<CardInstance>();
             injected.AddRange(WriteshiCollection.Snapshot());                     // ホスト自身（写真は手元にある）
             foreach (var g in clientWriteshi) injected.Add(new CardInstance(g.ToCardData())); // 参加者（写真なし）
@@ -227,7 +227,7 @@ namespace KiokuNoIseki.Online
                 : (engine.result == GameResult.Player0Win ? (viewer == 0 ? 1 : 2)
                                                           : (viewer == 1 ? 1 : 2));
 
-            // このビューに写る写し身の定義情報を集める（受信側が名前/技/系統を復元して描画する。写真は含めない）。
+            // このビューに写るマイモンの定義情報を集める（受信側が名前/技/系統を復元して描画する。写真は含めない）。
             var gen = new List<GenCardInfo>();
             var seen = new HashSet<string>();
             void AddGen(CardInstance c)

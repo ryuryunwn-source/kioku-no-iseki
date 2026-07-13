@@ -28,7 +28,7 @@ namespace KiokuNoIseki.Online
         NetGame net;
         bool inPlay;
         // オンライン対戦中の操作状態（自分視点）
-        int selectedIid;            // 選択中の自分の守護者
+        int selectedIid;            // 選択中の自分のモンスター
         int pendingSpellIid;        // 対象選択待ちの魔法（手札iid）
         bool pendingTargetsEnemy;
         enum PMode { Normal, AttackTarget, SpellTarget, Inscribe }
@@ -37,7 +37,7 @@ namespace KiokuNoIseki.Online
         bool showRules;            // ルール表示中
 
         static Dictionary<string, CardData> s_db;
-        // 写し身（gen_）の定義。ネット経由で受け取ったGenCardInfoから復元して保持する。
+        // マイモン（gen_）の定義。ネット経由で受け取ったGenCardInfoから復元して保持する。
         static readonly Dictionary<string, CardData> s_genDb = new Dictionary<string, CardData>();
         static CardData Def(string id)
         {
@@ -51,7 +51,7 @@ namespace KiokuNoIseki.Online
             return s_genDb.TryGetValue(id, out var g) ? g : null;
         }
 
-        // ネット経由で受け取った写し身定義を登録（写真は含まれない＝描画は自分の手元画像 or プレースホルダ）。
+        // ネット経由で受け取ったマイモン定義を登録（写真は含まれない＝描画は自分の手元画像 or プレースホルダ）。
         static void RegisterGen(GenCardInfo[] infos)
         {
             if (infos == null) return;
@@ -317,7 +317,7 @@ namespace KiokuNoIseki.Online
             bool myTurn = v.myTurn && v.result == 0;
 
             // 相手情報（上）
-            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   記憶 {v.foe.memoryCount}   盟約 {v.foe.pactCount}/{GameEngine.PactWinCount}",
+            MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   殿堂 {v.foe.memoryCount}   殿堂勝利 {v.foe.pactCount}/{GameEngine.PactWinCount}",
                 -250, 320, 760, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             // デッキ（裏面＋残数）
@@ -336,13 +336,13 @@ namespace KiokuNoIseki.Online
                     to.effectColor = new Color(0, 0, 0, 0.9f); to.effectDistance = new Vector2(1.2f, -1.2f);
                 }
             }
-            // 盟約リーチ警告（あと1体で勝利＝妨害判断を迫る）
+            // 殿堂リーチ警告（あと1体で勝利＝妨害判断を迫る）
             int pactReach = GameEngine.PactWinCount - 1;
             if (v.result == 0 && (v.me.pactCount >= pactReach || v.foe.pactCount >= pactReach))
             {
                 string who = v.foe.pactCount >= v.me.pactCount ? v.foe.name : v.me.name;
                 int max = Mathf.Max(v.me.pactCount, v.foe.pactCount);
-                var warnT = MakeText(root, $"⚠ 古き盟約：{who} はあと {GameEngine.PactWinCount - max} 体で勝利",
+                var warnT = MakeText(root, $"⚠ 殿堂：{who} はあと {GameEngine.PactWinCount - max} 体で勝利",
                     0, 228, 620, 26, 18, TextAnchor.MiddleCenter, new Color(1f, 0.45f, 0.35f));
                 var wo = warnT.gameObject.AddComponent<UnityEngine.UI.Outline>();
                 wo.effectColor = new Color(0, 0, 0, 0.9f); wo.effectDistance = new Vector2(1.2f, -1.2f);
@@ -364,7 +364,7 @@ namespace KiokuNoIseki.Online
             if (v.log != null && v.log.Length > 0)
                 MakeText(root, string.Join("\n", v.log), 430, 60, 360, 200, 13, TextAnchor.LowerRight, new Color(0.85f, 0.85f, 0.85f));
 
-            // 選択中の守護者はスキル詳細を出しておく
+            // 選択中のモンスターはスキル詳細を出しておく
             if (selectedIid != 0)
             {
                 var sel = FindCard(v, selectedIid);
@@ -372,7 +372,7 @@ namespace KiokuNoIseki.Online
             }
 
             // 自分情報（下）
-            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   記憶 {v.me.memoryCount}   盟約 {v.me.pactCount}/{GameEngine.PactWinCount}",
+            MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   殿堂 {v.me.memoryCount}   殿堂勝利 {v.me.pactCount}/{GameEngine.PactWinCount}",
                 -250, -210, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             DrawHand(v.me.hand, v.me.gauge, myTurn);
@@ -510,13 +510,13 @@ namespace KiokuNoIseki.Online
             else if (pmode == PMode.SpellTarget)
             {
                 string who = pendingTargetsEnemy ? "相手" : "自分";
-                MakeText(root, $"▶ 魔法の対象（{who}の守護者）を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
+                MakeText(root, $"▶ 魔法の対象（{who}のモンスター）を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
                 var cancel = MakeButton("やめる", 470, -250, 120, 40, new Color(0.4f, 0.4f, 0.4f));
                 cancel.onClick.AddListener(() => { pmode = PMode.Normal; pendingSpellIid = 0; RedrawPlay(); });
             }
             else if (pmode == PMode.AttackTarget)
             {
-                MakeText(root, "▶ 攻撃する相手の守護者を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
+                MakeText(root, "▶ 攻撃する相手のモンスターを選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
                 bool foeGuard = false;
                 foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) { foeGuard = true; break; } }
                 if (!foeGuard)
@@ -581,7 +581,7 @@ namespace KiokuNoIseki.Online
             if (s_artCache.TryGetValue(def.id, out var c)) return c;
             if (KiokuNoIseki.GeneratedArt.IsGenerated(def.id))
             {
-                // 自分が同じ写真を持っていれば実画像。無ければ（相手の写し身）系統色のプレースホルダ。
+                // 自分が同じ写真を持っていれば実画像。無ければ（相手のマイモン）系統色のプレースホルダ。
                 var g = KiokuNoIseki.GeneratedArt.Get(def.id);
                 if (g == null) g = MakeGenPlaceholder(def);
                 s_artCache[def.id] = g;
@@ -595,7 +595,7 @@ namespace KiokuNoIseki.Online
             return sp;
         }
 
-        // 相手の写し身（写真が手元に無い）用のプレースホルダ。系統色のグラデ＋中央菱形。
+        // 相手のマイモン（写真が手元に無い）用のプレースホルダ。系統色のグラデ＋中央菱形。
         static Sprite MakeGenPlaceholder(CardData def)
         {
             const int size = 64;
@@ -792,7 +792,7 @@ namespace KiokuNoIseki.Online
             {
                 case CardKind.Guardian:
                     string eng = cv.engraving > 0 ? $"  刻印{cv.engraving}" : "";
-                    return $"【守護者】{d.trueName}　系統:{ElemName(d.element)}\n" +
+                    return $"【モンスター】{d.trueName}　系統:{ElemName(d.element)}\n" +
                            $"コスト{d.cost}　攻撃{cv.atk} / 防御{cv.def}{eng}\n" +
                            $"━ 技「{d.techniqueName}」（詠唱コスト{d.incantationCost}）━\n{d.effectText}";
                 case CardKind.Recollection:
