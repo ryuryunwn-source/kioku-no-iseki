@@ -32,7 +32,14 @@ public class VoiceController : MonoBehaviour
         string[] keywords = { "いけっ", "いけ", "くらえ", "ターンエンド" };
         try
         {
-            recognizer = new KeywordRecognizer(keywords);
+            // 音声システムのエラーを可視化（日本語認識が無い等で失敗しても無言にならないように）
+            PhraseRecognitionSystem.OnError += (err) =>
+                Debug.LogError($"🎤 音声認識システムのエラー: {err}（日本語の音声パックが未インストールの可能性）");
+            PhraseRecognitionSystem.OnStatusChanged += (st) =>
+                Debug.Log($"🎤 音声認識システム状態: {st}");
+
+            // ConfidenceLevel.Low で聞き取りやすくする（既定Mediumだと拾えないことがある）
+            recognizer = new KeywordRecognizer(keywords, ConfidenceLevel.Low);
             recognizer.OnPhraseRecognized += (args) => {
                 lock (lockObject)
                 {
