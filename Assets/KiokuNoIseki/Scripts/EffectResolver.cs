@@ -3,13 +3,13 @@ using System.Linq;
 
 namespace KiokuNoIseki
 {
-    // 技・呪文の効果を解決する。対象は15-4の「デフォルト対象」を自動採用する
+    // 技・魔法の効果を解決する。対象は15-4の「デフォルト対象」を自動採用する
     // （v1ではタップで自己解決させ、操作を単純化する）。
     public static class EffectResolver
     {
         static void Log(GameEngine g, string s) => g.OnLog?.Invoke("  " + s);
 
-        // chosenTarget: 呪文などでプレイヤーが手動指定した対象（nullなら15-4のデフォルト対象を自動採用）
+        // chosenTarget: 魔法などでプレイヤーが手動指定した対象（nullなら15-4のデフォルト対象を自動採用）
         public static void Resolve(GameEngine g, RecallerState self, RecallerState opp,
             CardInstance source, EffectId eff, int mag, CardInstance chosenTarget = null)
         {
@@ -50,7 +50,7 @@ namespace KiokuNoIseki
                         t.damageTaken += mag;
                         g.ResolveDestruction(opp, t, self);
                     }
-                    Log(g, $"相手のユニット全体に{mag}ダメージ。");
+                    Log(g, $"相手の守護者全体に{mag}ダメージ。");
                     break;
                 }
 
@@ -95,11 +95,11 @@ namespace KiokuNoIseki
                     break;
                 case EffectId.GainGauge:
                     self.recallGauge = Math.Min(self.recallGaugeMax, self.recallGauge + mag);
-                    Log(g, $"マナ+{mag}。");
+                    Log(g, $"ゲージ+{mag}。");
                     break;
                 case EffectId.DrainEnemyGauge:
                     opp.recallGauge = Math.Max(0, opp.recallGauge - mag);
-                    Log(g, $"相手のマナ-{mag}。");
+                    Log(g, $"相手のゲージ-{mag}。");
                     break;
 
                 case EffectId.RemoveSicknessAlly:
@@ -139,7 +139,7 @@ namespace KiokuNoIseki
                 {
                     var t = (chosenTarget != null && self.board.Contains(chosenTarget))
                           ? chosenTarget : self.board.OrderByDescending(c => c.CurrentAttack).FirstOrDefault();
-                    if (t != null) { t.engravingCount += mag; Log(g, $"{t.definition.trueName} に強化+{mag}。"); }
+                    if (t != null) { t.engravingCount += mag; Log(g, $"{t.definition.trueName} に刻印+{mag}。"); }
                     break;
                 }
 
@@ -175,7 +175,7 @@ namespace KiokuNoIseki
                         if (c == null) break;
                         c.turnsInHand = 0; self.hand.Add(c); drawn++;
                     }
-                    Log(g, $"山札から{drawn}枚ドロー。");
+                    Log(g, $"デッキから{drawn}枚ドロー。");
                     break;
                 }
                 case EffectId.ScryReorder:
@@ -184,7 +184,7 @@ namespace KiokuNoIseki
                         int n = Math.Min(mag, g.deck.Count);
                         var top = g.deck.cards.Take(n).OrderByDescending(c => c.definition.cost).ToList();
                         for (int i = 0; i < n; i++) g.deck.cards[i] = top[i];
-                        Log(g, "山札上を並べ替えた。");
+                        Log(g, "デッキ上を並べ替えた。");
                     }
                     break;
                 case EffectId.DigSelectNext:
@@ -200,7 +200,7 @@ namespace KiokuNoIseki
                 case EffectId.ReturnMemoryToDeck:
                 {
                     var t = self.memoryZone.FirstOrDefault();
-                    if (t != null) { self.memoryZone.Remove(t); g.deck.ReturnToRandomPosition(t); Log(g, $"勝利ゾーンの「{t.definition.trueName}」を山札へ戻した。"); }
+                    if (t != null) { self.memoryZone.Remove(t); g.deck.ReturnToRandomPosition(t); Log(g, $"記憶領域の「{t.definition.trueName}」をデッキへ戻した。"); }
                     break;
                 }
             }

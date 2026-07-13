@@ -27,8 +27,8 @@ namespace KiokuNoIseki
         enum Mode { Normal, Inscribe, SelectAttackTarget, SelectSpellTarget }
         Mode mode = Mode.Normal;
         CardInstance selectedAttacker;
-        CardInstance pendingSpell;          // 対象選択待ちの呪文
-        bool pendingSpellTargetsEnemy;      // true=相手のユニットを選ぶ / false=自分のユニット
+        CardInstance pendingSpell;          // 対象選択待ちの魔法
+        bool pendingSpellTargetsEnemy;      // true=相手の守護者を選ぶ / false=自分の守護者
         bool showRules;
         bool showWriteshiForge;    // 写し身工房オーバーレイ表示中
         bool writeshiBusy;         // 命名リクエスト処理中（多重起動防止）
@@ -58,56 +58,56 @@ namespace KiokuNoIseki
 
 ■ 目的（勝利条件）
 ・相手のHPを0にする（通常勝利）
-・完全強化のユニットを勝利ゾーンに2体集める（古き盟約勝利）
-　ユニットを盤面で守り抜くと生存強化が貯まり、完全強化(強化4)で
-　破壊されると自分の勝利ゾーンへ。守護で守る戦略が第2の勝ち筋に。
+・刻印3の守護者を2体、記憶領域に集めると勝利（古き盟約勝利）
+　守護者を盤面で守り抜くと刻印が貯まり、刻印3の守護者が
+　さらに破壊される（4つ目の刻印がつく）と記憶領域へ。第2の勝ち筋。
 　※盟約の進捗は両者に公開。あと1体でリーチ警告が出る。
-・山札が尽きたとき、勝利ゾーンの枚数が多い方が勝利（枯渇勝利）
+・デッキが尽きたとき、記憶領域の枚数が多い方が勝利（枯渇勝利）
 
 ■ 基本
-・デッキは中央の『山札』48枚を2人で共有して掘り合う。
-・HPは20、マナは初期2/2。手札は最大7枚。
-・場：ユニット5スロット／設置カード3スロット。
+・デッキは中央の『デッキ』48枚を2人で共有して掘り合う。
+・HPは20、ゲージは初期2/2。手札は最大7枚。
+・場：守護者5スロット／魔法石3スロット。
 
 ■ ターンの流れ（5フェイズ）
-1. マナ減衰：ゲージが自動で-1（前ターンにマナ加速した場合はスキップ）。
-2. ドロー：山札から1枚引く。デッキの一番上は常に両者に公開される
+1. 減衰：ゲージが自動で-1（前ターンに生贄を行った場合はスキップ）。
+2. ドロー：デッキから1枚引く。デッキの一番上は常に両者に公開される
    （次に掘れるカードを見て、取るか・相手に渡すかの駆け引きが生まれる）。
-3. マナ加速（任意）：手札1枚を捧げてゲージ上限+1＆全回復。1ターン1回。
-   マナ加速と次の減衰はスキップされる。
+3. 生贄（任意）：手札1枚を捧げてゲージ上限+1＆全回復。1ターン1回。
+   生贄を行うと次の減衰はスキップされる。
 4. 行動：カードのプレイ・攻撃・技の発動を自由な順で。
 5. 終了：手札に長く残ったカードに劣化が溜まる。
 
 ■ カードの種類
-・ユニット：コスト/攻撃/防御を持つカード。出した直後は召喚酔いで攻撃不可
-  （技はタップで使用可）。各ユニットは固有の『技』を持つ。
-・呪文：使い切りの呪文。使用後は山札の一番下へ。
-・設置カード：場に残る永続効果カード。
+・守護者：コスト/攻撃/防御を持つカード。出した直後は召喚酔いで攻撃不可
+  （技はタップで使用可）。各守護者は固有の『技』を持つ。
+・魔法：使い切りのカード。使用後はデッキの一番下へ。
+・魔法石：場に残る永続効果カード。
 
 ■ 守護
-・一部のユニットは「守護」を持つ。相手の場に守護がいる間は、その本体(HP)を直接攻撃できない。
-・本体を狙うには先に守護を全部倒す（守護以外のユニットは普通に殴れる）。
+・一部の守護者は「守護」を持つ。相手の場に守護がいる間は、その本体(HP)を直接攻撃できない。
+・本体を狙うには先に守護を全部倒す（守護以外の守護者は普通に殴れる）。
 ・守護は除去や全体ダメージで処理できる。出した直後（召喚酔い中）でも守護は機能する。
 
 ■ 技の発動（タップ）
-・自分の行動フェイズに、自分のユニットをタップ→『技』ボタンで発動。
-・発動コストをゲージから支払う。1体につき1ターン1回まで。
+・自分の行動フェイズに、自分の守護者をタップ→『技』ボタンで発動。
+・詠唱コストをゲージから支払う。1体につき1ターン1回まで。
 
 ■ 劣化
 ・3ターン以上手札に残るとカウンターが増え、3で消滅する
   （消滅したカードはゲームから完全に除外）。
 
-■ 復帰（共有デッキの肝）
-・破壊されたユニットは墓地ではなく山札にシャッフルで戻る。
-・戻る際に『強化』が1つ増え、強化1つにつき攻撃力/防御力+1。
-・名前・技はカード固有なので、相手が掘り当てれば相手がその技を使える。
-・強化3のユニットがさらに破壊されると、破壊した側の勝利ゾーンへ送られる。
+■ 転生（共有デッキの肝）
+・破壊された守護者は墓地ではなくデッキにシャッフルで戻る。
+・戻る際に『刻印』が1つ増え、刻印1つにつき攻撃力/防御力+1。
+・真名・技はカード固有なので、相手が掘り当てれば相手がその技を使える。
+・刻印3の守護者がさらに破壊されると、破壊した側の記憶領域へ送られる。
 
 ■ 操作方法
 ・手札カードをクリック：プレイ（対象は自動選択）。
-・自分のユニットをクリック：選択→『技』『攻撃』。
-・攻撃：相手ユニットをクリックで対象指定、または本体を直接攻撃。
-・『マナ加速』→捧げる手札をクリック。
+・自分の守護者をクリック：選択→『技』『攻撃』。
+・攻撃：相手守護者をクリックで対象指定、または本体を直接攻撃。
+・『生贄』→捧げる手札をクリック。
 ・『ターン終了』でAIの番へ。";
 
         Transform root;
@@ -211,15 +211,15 @@ namespace KiokuNoIseki
             var foe = engine.players[1 - vp];
             bool ongoing = engine.result == GameResult.Ongoing;
 
-            // 盟約進捗（完全強化の体数）。両者に常時公開＝妨害判断の材料にする。
+            // 盟約進捗（完全刻印の体数）。両者に常時公開＝妨害判断の材料にする。
             int myPact = PactCount(me), foePact = PactCount(foe);
 
             // 上部：相手情報＋盤面
-            MakeLabel(root, $"{foe.name}   HP {foe.hp}   ゲージ {foe.recallGauge}/{foe.recallGaugeMax}   勝利ゾーン {foe.memoryZone.Count}   盟約 {foePact}/{GameEngine.PactWinCount}",
+            MakeLabel(root, $"{foe.name}   HP {foe.hp}   ゲージ {foe.recallGauge}/{foe.recallGaugeMax}   記憶領域 {foe.memoryZone.Count}   盟約 {foePact}/{GameEngine.PactWinCount}",
                 new Vector2(20, -16), new Vector2(700, 28), 20, TextAnchor.MiddleLeft, Color.white);
-            // 山札（裏面スタック＋残数）
+            // デッキ（裏面スタック＋残数）
             MakeCardBack(root, new Vector2(-150, -44), new Vector2(44, 63), fromTop:true, anchorRight:true);
-            MakeLabel(root, $"山札\n残り {engine.deck.Count} 枚",
+            MakeLabel(root, $"デッキ\n残り {engine.deck.Count} 枚",
                 new Vector2(-20, -52), new Vector2(120, 44), 16, TextAnchor.MiddleRight, new Color(0.8f,0.8f,0.6f), anchorRight:true);
             // 次のドロー（デッキトップ公開＝共有デッキの駆け引きの中心）
             if (engine.deck.Count > 0)
@@ -265,7 +265,7 @@ namespace KiokuNoIseki
             DrawBoardRow(me.board, y: -238, owner: me, isOpponent: false);
 
             // 下部：手番プレイヤー情報（自分の盤面カードと重ならないよう手札寄りに配置）
-            MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   勝利ゾーン {me.memoryZone.Count}   盟約 {myPact}/{GameEngine.PactWinCount}",
+            MakeLabel(root, $"{me.name}   HP {me.hp}   ゲージ {me.recallGauge}/{me.recallGaugeMax}   記憶領域 {me.memoryZone.Count}   盟約 {myPact}/{GameEngine.PactWinCount}",
                 new Vector2(20, 250), new Vector2(800, 28), 20, TextAnchor.MiddleLeft, Color.white, fromBottom:true);
 
             // 手札
@@ -277,7 +277,7 @@ namespace KiokuNoIseki
             // 勝敗
             if (!ongoing) DrawGameOver();
 
-            // 選択中のユニットがあればスキル詳細を出しておく
+            // 選択中の守護者があればスキル詳細を出しておく
             if (selectedAttacker != null && me.board.Contains(selectedAttacker))
                 ShowCardDetail(selectedAttacker);
 
@@ -303,15 +303,15 @@ namespace KiokuNoIseki
             switch (d.kind)
             {
                 case CardKind.Guardian:
-                    string eng = c.engravingCount > 0 ? $"  強化{c.engravingCount}" : "";
-                    return $"【ユニット】{d.trueName}　系統:{ElementName(d.element)}\n" +
+                    string eng = c.engravingCount > 0 ? $"  刻印{c.engravingCount}" : "";
+                    return $"【守護者】{d.trueName}　系統:{ElementName(d.element)}\n" +
                            $"コスト{d.cost}　攻撃{c.CurrentAttack} / 防御{c.RemainingDefense}{eng}\n" +
-                           $"━ 技「{d.techniqueName}」（発動コスト{d.incantationCost}）━\n" +
+                           $"━ 技「{d.techniqueName}」（詠唱コスト{d.incantationCost}）━\n" +
                            $"{d.effectText}";
                 case CardKind.Recollection:
-                    return $"【呪文】{d.trueName}　コスト{d.cost}\n{d.effectText}";
+                    return $"【魔法】{d.trueName}　コスト{d.cost}\n{d.effectText}";
                 default:
-                    return $"【設置カード】{d.trueName}　コスト{d.cost}（設置・永続）\n{d.effectText}";
+                    return $"【魔法石】{d.trueName}　コスト{d.cost}（設置・永続）\n{d.effectText}";
             }
         }
 
@@ -429,7 +429,7 @@ namespace KiokuNoIseki
 
                 if (mode == Mode.SelectSpellTarget && pendingSpell != null && pendingSpellTargetsEnemy == isOpponent)
                 {
-                    // 呪文の対象として選べる
+                    // 魔法の対象として選べる
                     btn.onClick.AddListener(() => {
                         engine.PlayCard(pendingSpell, card);
                         pendingSpell = null; mode = Mode.Normal; AfterHumanAction();
@@ -447,7 +447,7 @@ namespace KiokuNoIseki
                 }
                 else if (mode == Mode.Normal && !isOpponent && yourTurn)
                 {
-                    // 自分のユニット：選択して技/攻撃
+                    // 自分の守護者：選択して技/攻撃
                     btn.onClick.AddListener(() => OnSelectOwnGuardian(card));
                     if (selectedAttacker == card) Outline(btn.gameObject, Color.cyan);
                 }
@@ -462,7 +462,7 @@ namespace KiokuNoIseki
             Redraw();
         }
 
-        // 呪文で手動対象が必要なら対象選択モードへ。それ以外は即プレイ。
+        // 魔法で手動対象が必要なら対象選択モードへ。それ以外は即プレイ。
         void OnPlayHandCard(CardInstance card)
         {
             var me = engine.players[Vp];
@@ -537,17 +537,17 @@ namespace KiokuNoIseki
             endBtn.onClick.AddListener(() => { mode = Mode.Normal; selectedAttacker = null; engine.EndTurn(); AdvanceTurn(); });
             bx -= 150;
 
-            // マナ加速
+            // 生贄
             if (!me.inscribedThisTurn && me.hand.Count > 0)
             {
-                var insBtn = MakeButton(root, mode == Mode.Inscribe ? "マナ加速:手札選択" : "マナ加速",
+                var insBtn = MakeButton(root, mode == Mode.Inscribe ? "生贄:手札選択" : "生贄",
                     new Vector2(bx, 30), new Vector2(140, 44), new Color(0.35f,0.5f,0.35f), fromBottom:true, anchorRight:true);
                 insBtn.onClick.AddListener(() => { mode = mode == Mode.Inscribe ? Mode.Normal : Mode.Inscribe; selectedAttacker = null; Redraw(); });
                 bx -= 150;
             }
 
-            // 選択中のユニットの行動
-           // 選択中のユニットの行動
+            // 選択中の守護者の行動
+           // 選択中の守護者の行動
             if (selectedAttacker != null)
             {
                 var g = selectedAttacker;
@@ -597,7 +597,7 @@ namespace KiokuNoIseki
             if (mode == Mode.SelectSpellTarget && pendingSpell != null)
             {
                 string who = pendingSpellTargetsEnemy ? "相手" : "自分";
-                MakeLabel(root, $"▶「{pendingSpell.definition.trueName}」の対象（{who}のユニット）を選択",
+                MakeLabel(root, $"▶「{pendingSpell.definition.trueName}」の対象（{who}の守護者）を選択",
                     new Vector2(20, 188), new Vector2(640, 30), 20, TextAnchor.MiddleLeft, Color.yellow, fromBottom:true);
                 var c = MakeButton(root, "対象選択をやめる", new Vector2(bx, 84), new Vector2(180, 40),
                     new Color(0.4f,0.4f,0.4f), fromBottom:true, anchorRight:true);
@@ -632,7 +632,7 @@ namespace KiokuNoIseki
         void OnAttackFx(CardInstance attacker, CardInstance target)
         {
             if (root == null) return;
-            // 本体への直接攻撃=赤、ユニット同士の戦闘=黄白
+            // 本体への直接攻撃=赤、守護者同士の戦闘=黄白
             Color c = target == null ? new Color(1f, 0.25f, 0.15f) : new Color(1f, 0.92f, 0.55f);
             StartCoroutine(FlashFx(c));
         }
@@ -697,7 +697,7 @@ namespace KiokuNoIseki
             engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived; // ★バグ修正：新エンジンにボイス登録！
             engine.OnAttack += OnAttackFx; // 攻撃演出
 
-            // 写し身があれば山札に合流させる（同数の固定ユニットと置き換わる）。
+            // 写し身があればデッキに合流させる（同数の固定守護者と置き換わる）。
             engine.injectedWriteshi = WriteshiCollection.Count > 0 ? WriteshiCollection.Snapshot() : null;
             engine.NewGame(player1IsAI: ai);
             AddLog(ai ? "=== 対戦開始：あなた vs AI ==="
@@ -775,7 +775,7 @@ namespace KiokuNoIseki
         string WriteshiButtonLabel() =>
             WriteshiCollection.Count > 0 ? $"写し身工房（{WriteshiCollection.Count}体）" : "写し身工房（写真からカード生成）";
 
-        // 写し身工房オーバーレイ：写真から写し身を生成し、対戦の山札に混ぜる。
+        // 写し身工房オーバーレイ：写真から写し身を生成し、対戦のデッキに混ぜる。
         void DrawWriteshiForge()
         {
             var dim = MakePanel(root, new Color(0.03f, 0.03f, 0.05f, 0.92f), "WriteshiForge");
@@ -788,7 +788,7 @@ namespace KiokuNoIseki
 
             string apiState = WriteshiNamingService.HasKeys() ? "AI命名: 有効" : "AI命名: 無効（オフライン名で生成）";
             string info =
-                $"写真からユニットカード（写し身）を作り、対戦の山札に混ぜます。\n" +
+                $"写真から守護者カード（写し身）を作り、対戦のデッキに混ぜます。\n" +
                 $"作成した写し身: {WriteshiCollection.Count} 体 / {apiState}\n" +
                 (writeshiBusy ? "…命名中…" : "同じ写真からは常に同じカードが生成されます。");
             var infoT = MakeChildText(dim.transform, info, 18, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.88f));
@@ -962,7 +962,7 @@ namespace KiokuNoIseki
         }
 
         // 石板/遺跡テーマのカード枠（C案）。系統色は枠の縁、技は簡易テキスト、詳細はホバーで表示。
-        // カード裏面（石板に彫り込んだ「記憶の遺跡」の紋章）。相手の手札・山札に使う。
+        // カード裏面（石板に彫り込んだ「記憶の遺跡」の紋章）。相手の手札・デッキに使う。
         GameObject MakeCardBack(Transform parent, Vector2 pos, Vector2 size, bool fromTop=false, bool fromBottom=false, bool anchorRight=false)
         {
             float s = size.x / 128f; // 128幅を基準にした拡縮
@@ -1047,7 +1047,7 @@ namespace KiokuNoIseki
             SetAnchor(rt, pos, rt.sizeDelta, fromTop, fromBottom, false); // 大きさはプレハブ準拠
 
             string sub = isGuardian ? def.techniqueName
-                       : def.kind == CardKind.Recollection ? "呪文" : "設置カード";
+                       : def.kind == CardKind.Recollection ? "魔法" : "魔法石";
             string flags = isGuardian
                 ? ((c.engravingCount > 0 ? $"刻{c.engravingCount} " : "") + (c.summoningSick ? "酔" : ""))
                 : "";
@@ -1142,7 +1142,7 @@ namespace KiokuNoIseki
 
             // 技/種別テキスト（最下部パネル）
             string sub = isGuardian ? def.techniqueName
-                       : def.kind == CardKind.Recollection ? "呪文" : "設置カード";
+                       : def.kind == CardKind.Recollection ? "魔法" : "魔法石";
             var subT = MakeChildText(go.transform, sub, 11, TextAnchor.MiddleCenter, new Color(0.95f,0.89f,0.75f));
             var subrt = subT.rectTransform;
             subrt.anchorMin = new Vector2(0.12f,0.05f); subrt.anchorMax = new Vector2(0.88f,0.17f);
@@ -1169,7 +1169,7 @@ namespace KiokuNoIseki
                 PlaceAt(defT.rectTransform, new Vector2(0.189f,0.266f), new Vector2(22,22));
                 Shade(defT);
 
-                // 強化 / 召喚酔い（中央の装飾帯）
+                // 刻印 / 召喚酔い（中央の装飾帯）
                 string flags = (c.engravingCount > 0 ? $"刻{c.engravingCount} " : "") + (c.summoningSick ? "酔" : "");
                 if (flags.Length > 0)
                 {
@@ -1283,7 +1283,7 @@ namespace KiokuNoIseki
 
             Sprite sp = null;
             // 1) ユーザー画像を優先（Resources/CardArt/ 配下）
-            //    ユニットは guardian_001〜030.png、それ以外は {id}.png でも可
+            //    守護者は guardian_001〜030.png、それ以外は {id}.png でも可
             if (def.kind == CardKind.Guardian && def.id.Length > 1 && int.TryParse(def.id.Substring(1), out int gi))
                 sp = Resources.Load<Sprite>($"CardArt/guardian_{gi:000}");
             if (sp == null) sp = Resources.Load<Sprite>($"CardArt/{def.id}");
@@ -1341,7 +1341,7 @@ namespace KiokuNoIseki
             return img;
         }
 
-        // 古き盟約の進捗（完全強化のユニットが勝利ゾーンに何体か）
+        // 古き盟約の進捗（完全刻印の守護者が記憶領域に何体か）
         static int PactCount(RecallerState p) => p.memoryZone.Count(c => c.engravingCount >= GameEngine.PactEngraving);
 
         // テキストに黒縁取り（背景画像の上でも読めるように）
@@ -1443,7 +1443,7 @@ namespace KiokuNoIseki
         {
             if (selectedAttacker == null)
             {
-                Debug.Log("❌ [ボイス] 攻撃させたい自分のユニット（対象）が選ばれていません！");
+                Debug.Log("❌ [ボイス] 攻撃させたい自分の守護者（対象）が選ばれていません！");
                 return;
             }
 

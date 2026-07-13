@@ -12,11 +12,11 @@ namespace KiokuNoIseki
             switch (eff)
             {
                 case EffectId.DamageLowestDefEnemyOrFace:
-                    return $"相手の場で防御力が最も低いユニットに{mag}ダメージ。いなければ相手に{mag}ダメージ。";
+                    return $"相手の場で防御力が最も低い守護者に{mag}ダメージ。いなければ相手に{mag}ダメージ。";
                 case EffectId.DamageAllEnemyGuardians:
-                    return $"相手の場のユニット全体に{mag}ダメージ。";
+                    return $"相手の場の守護者全体に{mag}ダメージ。";
                 case EffectId.DamageEnemyGuardian:
-                    return $"相手のユニット1体に{mag}ダメージ。";
+                    return $"相手の守護者1体に{mag}ダメージ。";
                 case EffectId.SelfDefenseBuffPerm:
                     return $"自分自身の防御力+{mag}する（永続）。";
                 case EffectId.SelfDefenseBuffTurn:
@@ -28,24 +28,24 @@ namespace KiokuNoIseki
                 case EffectId.HealHP:
                     return $"自分のHPを{mag}回復する。";
                 case EffectId.GainGauge:
-                    return $"自分のマナを+{mag}する（上限は超えない）。";
+                    return $"自分のゲージを+{mag}する（上限は超えない）。";
                 case EffectId.DrainEnemyGauge:
-                    return $"相手のマナを-{mag}する（最低0）。";
+                    return $"相手のゲージを-{mag}する（最低0）。";
                 case EffectId.BuffAllAllyDefPerm:
-                    return $"自分の場のユニット全体の防御力+{mag}する（永続）。";
+                    return $"自分の場の守護者全体の防御力+{mag}する（永続）。";
                 case EffectId.BuffAllAllyAtkPerm:
-                    return $"自分の場のユニット全体の攻撃力+{mag}する（永続）。";
+                    return $"自分の場の守護者全体の攻撃力+{mag}する（永続）。";
                 case EffectId.DebuffHighestAtkPerm:
-                    return $"相手の場で攻撃力が最も高いユニットの攻撃力-{mag}する（永続）。";
+                    return $"相手の場で攻撃力が最も高い守護者の攻撃力-{mag}する（永続）。";
                 case EffectId.DebuffHighestAtkTurn:
-                    return $"相手の場で攻撃力が最も高いユニットの攻撃力をこのターン中-{mag}する。";
+                    return $"相手の場で攻撃力が最も高い守護者の攻撃力をこのターン中-{mag}する。";
                 default:
                     return "（特殊効果）";
             }
         }
     }
 
-    // 【v2】写し身：写真から動的生成されるユニットデータ（19章 GeneratedGuardianData）。
+    // 【v2】写し身：写真から動的生成される守護者データ（19章 GeneratedGuardianData）。
     // 固定カード(CardData)とは別に、CardInstance.generated に保持する。
     // 強さ（系統・コスト・攻防・技の効果）はすべて決定論的アルゴリズムで決める（15章）。
     // 名前・技名だけを AI（またはオフライン候補リスト）で与える。同じ写真は常に同じカードになる。
@@ -62,8 +62,8 @@ namespace KiokuNoIseki
         public int techniqueMagnitude;
         public int incantationCost;
 
-        // このデータから、既存エンジンがそのまま扱える合成 CardData（ユニット）を作る。
-        // これにより写し身は固定ユニットと完全に同じルール（劣化・復帰・強化・守護）で動く。
+        // このデータから、既存エンジンがそのまま扱える合成 CardData（守護者）を作る。
+        // これにより写し身は固定守護者と完全に同じルール（劣化・転生・刻印・守護）で動く。
         public CardData ToCardData()
         {
             return new CardData

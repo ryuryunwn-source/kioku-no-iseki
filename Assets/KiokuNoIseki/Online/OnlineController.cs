@@ -28,8 +28,8 @@ namespace KiokuNoIseki.Online
         NetGame net;
         bool inPlay;
         // オンライン対戦中の操作状態（自分視点）
-        int selectedIid;            // 選択中の自分のユニット
-        int pendingSpellIid;        // 対象選択待ちの呪文（手札iid）
+        int selectedIid;            // 選択中の自分の守護者
+        int pendingSpellIid;        // 対象選択待ちの魔法（手札iid）
         bool pendingTargetsEnemy;
         enum PMode { Normal, AttackTarget, SpellTarget, Inscribe }
         PMode pmode = PMode.Normal;
@@ -320,9 +320,9 @@ namespace KiokuNoIseki.Online
             MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   記憶 {v.foe.memoryCount}   盟約 {v.foe.pactCount}/{GameEngine.PactWinCount}",
                 -250, 320, 760, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
-            // 山札（裏面＋残数）
+            // デッキ（裏面＋残数）
             MakeBack(480, 292, 30, 44);
-            MakeText(root, $"山札 {v.deckCount}", 480, 256, 130, 24, 14, TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.6f));
+            MakeText(root, $"デッキ {v.deckCount}", 480, 256, 130, 24, 14, TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.6f));
             // 次のドロー（デッキトップ公開＝共有デッキの駆け引きの中心）
             if (!string.IsNullOrEmpty(v.deckTopId))
             {
@@ -364,7 +364,7 @@ namespace KiokuNoIseki.Online
             if (v.log != null && v.log.Length > 0)
                 MakeText(root, string.Join("\n", v.log), 430, 60, 360, 200, 13, TextAnchor.LowerRight, new Color(0.85f, 0.85f, 0.85f));
 
-            // 選択中のユニットはスキル詳細を出しておく
+            // 選択中の守護者はスキル詳細を出しておく
             if (selectedIid != 0)
             {
                 var sel = FindCard(v, selectedIid);
@@ -504,19 +504,19 @@ namespace KiokuNoIseki.Online
 
             if (pmode == PMode.Inscribe)
             {
-                var cancel = MakeButton("マナ加速:手札選択中（やめる）", 300, -250, 230, 40, new Color(0.4f, 0.4f, 0.4f));
+                var cancel = MakeButton("生贄:手札選択中（やめる）", 300, -250, 230, 40, new Color(0.4f, 0.4f, 0.4f));
                 cancel.onClick.AddListener(() => { pmode = PMode.Normal; RedrawPlay(); });
             }
             else if (pmode == PMode.SpellTarget)
             {
                 string who = pendingTargetsEnemy ? "相手" : "自分";
-                MakeText(root, $"▶ 呪文の対象（{who}のユニット）を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
+                MakeText(root, $"▶ 魔法の対象（{who}の守護者）を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
                 var cancel = MakeButton("やめる", 470, -250, 120, 40, new Color(0.4f, 0.4f, 0.4f));
                 cancel.onClick.AddListener(() => { pmode = PMode.Normal; pendingSpellIid = 0; RedrawPlay(); });
             }
             else if (pmode == PMode.AttackTarget)
             {
-                MakeText(root, "▶ 攻撃する相手のユニットを選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
+                MakeText(root, "▶ 攻撃する相手の守護者を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
                 bool foeGuard = false;
                 foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) { foeGuard = true; break; } }
                 if (!foeGuard)
@@ -533,7 +533,7 @@ namespace KiokuNoIseki.Online
             }
             else
             {
-                var ins = MakeButton("マナ加速", 470, -250, 150, 44, new Color(0.35f, 0.5f, 0.35f));
+                var ins = MakeButton("生贄", 470, -250, 150, 44, new Color(0.35f, 0.5f, 0.35f));
                 ins.onClick.AddListener(() => { pmode = PMode.Inscribe; selectedIid = 0; RedrawPlay(); });
 
                 if (selectedIid != 0)
@@ -695,7 +695,7 @@ namespace KiokuNoIseki.Online
                 PlaceRange("守護", new Vector2(0.17f,0.795f), new Vector2(0.47f,0.875f), 11, new Color(0.78f,0.93f,1f), true);
             }
             // 技/種別（下部パネル）
-            string sub = def.kind == CardKind.Guardian ? def.techniqueName : def.kind == CardKind.Recollection ? "呪文" : "設置カード";
+            string sub = def.kind == CardKind.Guardian ? def.techniqueName : def.kind == CardKind.Recollection ? "魔法" : "魔法石";
             PlaceRange(sub, new Vector2(0.12f,0.05f), new Vector2(0.88f,0.17f), 10, new Color(0.95f,0.89f,0.75f), true);
             // コスト
             PlaceAt(def.cost.ToString(), new Vector2(0.148f,0.487f), 14, new Color(1f,0.86f,0.42f));
@@ -737,7 +737,7 @@ namespace KiokuNoIseki.Online
             rt.anchoredPosition = new Vector2(cx, cy); // 大きさはプレハブ準拠
 
             bool isGuardian = def.kind == CardKind.Guardian;
-            string sub = isGuardian ? def.techniqueName : def.kind == CardKind.Recollection ? "呪文" : "設置カード";
+            string sub = isGuardian ? def.techniqueName : def.kind == CardKind.Recollection ? "魔法" : "魔法石";
             string flags = isGuardian ? ((cv.engraving > 0 ? $"刻{cv.engraving} " : "") + (cv.sick ? "酔" : "")) : "";
             view.Bind(jpFont, GetFrame(), GetArt(def), def.trueName, def.cost.ToString(), isGuardian,
                 ElemName(def.element), cv.atk.ToString(), cv.def.ToString(), sub, flags, def.guard);
@@ -791,14 +791,14 @@ namespace KiokuNoIseki.Online
             switch (d.kind)
             {
                 case CardKind.Guardian:
-                    string eng = cv.engraving > 0 ? $"  強化{cv.engraving}" : "";
-                    return $"【ユニット】{d.trueName}　系統:{ElemName(d.element)}\n" +
+                    string eng = cv.engraving > 0 ? $"  刻印{cv.engraving}" : "";
+                    return $"【守護者】{d.trueName}　系統:{ElemName(d.element)}\n" +
                            $"コスト{d.cost}　攻撃{cv.atk} / 防御{cv.def}{eng}\n" +
-                           $"━ 技「{d.techniqueName}」（発動コスト{d.incantationCost}）━\n{d.effectText}";
+                           $"━ 技「{d.techniqueName}」（詠唱コスト{d.incantationCost}）━\n{d.effectText}";
                 case CardKind.Recollection:
-                    return $"【呪文】{d.trueName}　コスト{d.cost}\n{d.effectText}";
+                    return $"【魔法】{d.trueName}　コスト{d.cost}\n{d.effectText}";
                 default:
-                    return $"【設置カード】{d.trueName}　コスト{d.cost}（設置・永続）\n{d.effectText}";
+                    return $"【魔法石】{d.trueName}　コスト{d.cost}（設置・永続）\n{d.effectText}";
             }
         }
 

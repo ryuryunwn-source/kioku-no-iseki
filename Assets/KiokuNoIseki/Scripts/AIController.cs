@@ -11,7 +11,7 @@ namespace KiokuNoIseki
             var self = g.Cur;
             var opp = g.Opp;
 
-            // ── マナ加速フェイズ ──
+            // ── 生贄フェイズ ──
             int unaffordable = self.hand.Count(c => c.definition.cost > self.recallGauge);
             if (!self.inscribedThisTurn && unaffordable >= 2 && self.hand.Count > 1)
             {
@@ -27,7 +27,7 @@ namespace KiokuNoIseki
                 break;
             }
 
-            // 6. 攻撃可能なユニットを全て攻撃させる
+            // 6. 攻撃可能な守護者を全て攻撃させる
             DoAttacks(g, self, opp);
 
             if (g.result == GameResult.Ongoing) g.EndTurn();
@@ -51,20 +51,20 @@ namespace KiokuNoIseki
                 if (TechniqueActivator.TryActivate(g, gd, out _)) return true;
             }
 
-            // 3. 今出せる最もコストの高いユニットを出す
+            // 3. 今出せる最もコストの高い守護者を出す
             var bestGuardian = self.hand
                 .Where(c => c.definition.kind == CardKind.Guardian && c.definition.cost <= self.recallGauge)
                 .OrderByDescending(c => c.definition.cost).FirstOrDefault();
             if (bestGuardian != null && self.board.Count < RecallerState.BoardLimit)
                 if (g.PlayCard(bestGuardian)) return true;
 
-            // 4. 除去呪文（断たれた絆）を相手の高攻撃に
+            // 4. 除去魔法（断たれた絆）を相手の高攻撃に
             var destroy = self.hand.FirstOrDefault(c =>
                 c.definition.spellEffect == EffectId.DestroyEnemyGuardian && c.definition.cost <= self.recallGauge);
             if (destroy != null && opp.board.Count > 0)
                 if (g.PlayCard(destroy)) return true;
 
-            // 5. その他の呪文・設置カードをコストの高い順に
+            // 5. その他の魔法・魔法石をコストの高い順に
             var spell = self.hand
                 .Where(c => c.definition.kind != CardKind.Guardian && c.definition.cost <= self.recallGauge)
                 .Where(c => SpellIsUseful(c, self, opp))
@@ -81,7 +81,7 @@ namespace KiokuNoIseki
             foreach (var a in attackers)
             {
                 if (g.result != GameResult.Ongoing) return;
-                // 撃破できる相手ユニットを優先
+                // 撃破できる相手守護者を優先
                 var killable = opp.board
                     .Where(t => t.RemainingDefense <= a.CurrentAttack)
                     .OrderByDescending(t => t.CurrentAttack).FirstOrDefault();

@@ -17,7 +17,7 @@ namespace KiokuNoIseki
         public Text atkText;        // 攻撃
         public Text defText;        // 防御
         public Text techText;       // 技/種別
-        public Text flagsText;      // 強化/酔い
+        public Text flagsText;      // 刻印/酔い
         public GameObject guardBadge; // 守護バッジ（表示/非表示）
         public Button button;       // クリック領域（ルート）
 
