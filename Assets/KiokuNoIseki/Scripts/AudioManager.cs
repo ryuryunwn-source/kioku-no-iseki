@@ -38,6 +38,13 @@ namespace KiokuNoIseki
             bgm.loop = true; bgm.playOnAwake = false;
             sfx = gameObject.AddComponent<AudioSource>();
             sfx.loop = false; sfx.playOnAwake = false; sfx.volume = sfxUserVol;
+
+            // シーンに AudioListener が1つも無いと「no audio listeners」警告が出て音が鳴らない。
+            // 当ゲームの音は全て2D（BGM/効果音）なので位置は不問。無ければ常駐マネージャに付けて必ず1つ確保する
+            //（既に存在する場合は二重にしない＝multiple listeners警告を避ける）。
+            if (Object.FindFirstObjectByType<AudioListener>() == null)
+                gameObject.AddComponent<AudioListener>();
+
             ApplyBgm();
         }
 
