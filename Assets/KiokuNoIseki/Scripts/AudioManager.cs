@@ -88,7 +88,7 @@ namespace KiokuNoIseki
 
         // ── 便利ショートカット（Instanceが無くても安全）──
         public static void Title() { Instance?.PlayBgm("bgm_title", 1f); }
-        public static void Battle() { Instance?.PlayBgm("bgm_battle", 0.7f); } // 戦闘は30%小さく
+        public static void Battle() { Instance?.PlayBgm("bgm_battle", 0.4f); } // 戦闘BGMは係数0.4（さらに小さく）
         public static void Sfx(string name, float v = 1f) { Instance?.PlaySfx(name, v); }
     }
 }
