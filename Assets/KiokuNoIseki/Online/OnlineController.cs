@@ -620,52 +620,76 @@ namespace KiokuNoIseki.Online
             else Submit(NetActionType.PlayCard, cv.iid);
         }
 
+        // ボタン等を画面の右下隅にアンカー固定する（解像度/縦横比が違っても手札=中央 と重ならない）。
+        void PinBottomRight(RectTransform rt, float right, float bottom)
+        {
+            rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(1f, 0f);
+            rt.anchoredPosition = new Vector2(-right, bottom);
+        }
+
         void DrawControls(GameView v, bool myTurn)
         {
-            if (!myTurn) { MakeText(root, "相手の番です…", 430, -278, 260, 36, 20, TextAnchor.MiddleRight, Color.gray); return; }
+            const float RX = 24f; // 右端からの余白
+            if (!myTurn)
+            {
+                var wait = MakeText(root, "相手の番です…", 0, 0, 240, 36, 20, TextAnchor.MiddleRight, Color.gray);
+                PinBottomRight(wait.rectTransform, RX, 30);
+                return;
+            }
 
-            var end = MakeButton("ターン終了", 470, -278, 150, 44, new Color(0.5f, 0.3f, 0.3f));
+            // ターン終了（常時・最下段）
+            var end = MakeButton("ターン終了", 0, 0, 150, 44, new Color(0.5f, 0.3f, 0.3f));
+            PinBottomRight((RectTransform)end.transform, RX, 22);
             end.onClick.AddListener(() => Submit(NetActionType.EndTurn, 0));
 
             if (pmode == PMode.Inscribe)
             {
-                var cancel = MakeButton("生贄:手札選択中（やめる）", 300, -250, 230, 40, new Color(0.4f, 0.4f, 0.4f));
+                var cancel = MakeButton("生贄:手札選択中（やめる）", 0, 0, 230, 40, new Color(0.4f, 0.4f, 0.4f));
+                PinBottomRight((RectTransform)cancel.transform, RX, 74);
                 cancel.onClick.AddListener(() => { pmode = PMode.Normal; RedrawPlay(); });
             }
             else if (pmode == PMode.SpellTarget)
             {
                 string who = pendingTargetsEnemy ? "相手" : "自分";
-                MakeText(root, $"▶ 魔法の対象（{who}のモンスター）を選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
-                var cancel = MakeButton("やめる", 470, -250, 120, 40, new Color(0.4f, 0.4f, 0.4f));
+                MakeText(root, $"▶ 魔法の対象（{who}のモンスター）を選択", -250, -150, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
+                var cancel = MakeButton("やめる", 0, 0, 120, 40, new Color(0.4f, 0.4f, 0.4f));
+                PinBottomRight((RectTransform)cancel.transform, RX, 74);
                 cancel.onClick.AddListener(() => { pmode = PMode.Normal; pendingSpellIid = 0; RedrawPlay(); });
             }
             else if (pmode == PMode.AttackTarget)
             {
-                MakeText(root, "▶ 攻撃する相手のモンスターを選択", -250, -250, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
+                MakeText(root, "▶ 攻撃する相手のモンスターを選択", -250, -150, 640, 30, 20, TextAnchor.MiddleLeft, Color.yellow);
                 bool foeGuard = false;
                 foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) { foeGuard = true; break; } }
                 if (!foeGuard)
                 {
-                    var face = MakeButton("本体を直接攻撃", 300, -250, 200, 40, new Color(0.6f, 0.45f, 0.3f));
+                    var face = MakeButton("本体を直接攻撃", 0, 0, 200, 40, new Color(0.6f, 0.45f, 0.3f));
+                    PinBottomRight((RectTransform)face.transform, RX, 126);
                     face.onClick.AddListener(() => Submit(NetActionType.Attack, selectedIid, 0));
                 }
                 else
                 {
-                    MakeText(root, "守護がいるため本体を攻撃不可", 280, -250, 240, 30, 16, TextAnchor.MiddleCenter, new Color(0.85f, 0.72f, 0.5f));
+                    var g2 = MakeText(root, "守護がいるため本体を攻撃不可", 0, 0, 240, 30, 15, TextAnchor.MiddleRight, new Color(0.85f, 0.72f, 0.5f));
+                    PinBottomRight(g2.rectTransform, RX, 130);
                 }
-                var cancel = MakeButton("やめる", 470, -250, 120, 40, new Color(0.4f, 0.4f, 0.4f));
+                var cancel = MakeButton("やめる", 0, 0, 120, 40, new Color(0.4f, 0.4f, 0.4f));
+                PinBottomRight((RectTransform)cancel.transform, RX, 74);
                 cancel.onClick.AddListener(() => { pmode = PMode.Normal; RedrawPlay(); });
             }
             else
             {
-                var ins = MakeButton("生贄", 470, -250, 150, 44, new Color(0.35f, 0.5f, 0.35f));
+                var ins = MakeButton("生贄", 0, 0, 150, 44, new Color(0.35f, 0.5f, 0.35f));
+                PinBottomRight((RectTransform)ins.transform, RX, 74);
                 ins.onClick.AddListener(() => { pmode = PMode.Inscribe; selectedIid = 0; RedrawPlay(); });
 
                 if (selectedIid != 0)
                 {
-                    var tech = MakeButton("技を発動", 280, -250, 150, 44, new Color(0.4f, 0.4f, 0.6f));
+                    var tech = MakeButton("技を発動", 0, 0, 150, 44, new Color(0.4f, 0.4f, 0.6f));
+                    PinBottomRight((RectTransform)tech.transform, RX, 126);
                     tech.onClick.AddListener(() => Submit(NetActionType.Technique, selectedIid));
-                    var atk = MakeButton("攻撃", 110, -250, 150, 44, new Color(0.6f, 0.4f, 0.4f));
+                    var atk = MakeButton("攻撃", 0, 0, 150, 44, new Color(0.6f, 0.4f, 0.4f));
+                    PinBottomRight((RectTransform)atk.transform, RX, 178);
                     atk.onClick.AddListener(() => {
                         if (v.foe.board.Length == 0) Submit(NetActionType.Attack, selectedIid, 0);
                         else { pmode = PMode.AttackTarget; RedrawPlay(); }
