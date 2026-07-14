@@ -12,6 +12,11 @@ public class VoiceController : MonoBehaviour
     private readonly object lockObject = new object();
     private bool isProcessing = false;
 
+    // 認識したコマンドを他システム（オンライン対戦など）へ配信するイベント。
+    // 音声認識器はこの1クラスだけが持ち、購読側は自分の状態で処理を判断する
+    //（同じキーワードで認識器を二重生成するとUnityが例外を出すため）。
+    public static event System.Action<string> OnVoiceCommand;
+
     // シーンに手動配置していなくても必ず起動するよう自動生成する（GameUI/OnlineControllerと同じ方式）。
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
@@ -95,6 +100,9 @@ public class VoiceController : MonoBehaviour
 
     private IEnumerator SafeProcessCommand(string command)
     {
+        // まず他リスナー（オンライン対戦など）へ通知。オフライン対戦中でなくても届く。
+        OnVoiceCommand?.Invoke(command);
+
         // 毎回、現在進行中の対戦エンジンを取り直す（対戦をやり直すと新しいエンジンになるため）
         var gameUI = Object.FindFirstObjectByType<GameUI>();
         if (gameUI != null && gameUI.engine != null) gameEngine = gameUI.engine;

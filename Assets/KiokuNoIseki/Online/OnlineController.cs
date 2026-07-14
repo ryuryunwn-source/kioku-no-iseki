@@ -101,43 +101,21 @@ namespace KiokuNoIseki.Online
         public static OnlineController Instance => s_instance;
         public bool IsOnlineMatchActive => inPlay && net != null && net.LatestView != null;
 
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-        UnityEngine.Windows.Speech.KeywordRecognizer voiceRecognizer;
-        string pendingVoice;
-        readonly object voiceLock = new object();
-
-        void Update()
-        {
-            string cmd = null;
-            lock (voiceLock) { if (!string.IsNullOrEmpty(pendingVoice)) { cmd = pendingVoice; pendingVoice = null; } }
-            if (cmd != null) HandleVoice(cmd);
-        }
-
-        void OnDestroy() { StopVoice(); }
-#endif
-
-        // 対戦開始時に起動／終了時に停止（二重起動はガード）。
+        // 音声認識器は VoiceController（オフライン側）が1つだけ持ち、認識結果をイベント配信する。
+        // オンラインはそれを購読して受け取る（同一キーワードで認識器を二重生成すると衝突するため）。
         void StartVoice()
         {
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-            if (voiceRecognizer != null) return;
-            voiceRecognizer = new UnityEngine.Windows.Speech.KeywordRecognizer(
-                new[] { "いけっ", "いけ", "くらえ", "ターンエンド" });
-            voiceRecognizer.OnPhraseRecognized += a => { lock (voiceLock) { pendingVoice = a.text; } };
-            voiceRecognizer.Start();
-            Debug.Log("🎤 オンライン音声認識を起動しました。");
-#endif
+            VoiceController.OnVoiceCommand -= HandleVoice;  // 二重購読防止
+            VoiceController.OnVoiceCommand += HandleVoice;
+            Debug.Log("🎤 オンライン音声操作を有効化しました。");
         }
 
         void StopVoice()
         {
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-            if (voiceRecognizer == null) return;
-            if (voiceRecognizer.IsRunning) voiceRecognizer.Stop();
-            voiceRecognizer.Dispose();
-            voiceRecognizer = null;
-#endif
+            VoiceController.OnVoiceCommand -= HandleVoice;
         }
+
+        void OnDestroy() { StopVoice(); }
 
         // 認識した語を対戦操作へ（対戦中・自分の行動フェイズのみ実行）。
         void HandleVoice(string cmd)
