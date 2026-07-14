@@ -976,6 +976,7 @@ namespace KiokuNoIseki.Online
             var d = Def(cv.cardId); if (d == null) return;
             if (onlineDetail != null) Destroy(onlineDetail);
             var p = MakePanel(new Color(0.05f, 0.05f, 0.09f, 0.96f));
+            p.raycastTarget = false; // 説明表示のみ。最前面に出すため、クリックを吸って敵選択を妨げないよう無効化（重要）
             onlineDetail = p.gameObject;
             var rt = p.rectTransform;
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);

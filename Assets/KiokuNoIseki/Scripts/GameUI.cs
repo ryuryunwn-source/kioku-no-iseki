@@ -335,6 +335,7 @@ namespace KiokuNoIseki
         {
             if (cardDetail != null) Destroy(cardDetail);
             var panel = MakePanel(root, new Color(0.05f, 0.05f, 0.09f, 0.96f), "DetailPanel");
+            panel.raycastTarget = false; // 説明表示のみ。最前面に出すため、クリックを吸って盤面の選択を妨げないよう無効化（重要）
             cardDetail = panel.gameObject;
             var rt = panel.rectTransform;
             rt.anchorMin = new Vector2(0.5f, 0); rt.anchorMax = new Vector2(0.5f, 0);
