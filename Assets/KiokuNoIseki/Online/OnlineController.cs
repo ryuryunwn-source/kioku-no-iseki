@@ -288,7 +288,10 @@ namespace KiokuNoIseki.Online
             var nm = go.AddComponent<NetworkManager>();
             var utp = go.AddComponent<UnityTransport>();
             utp.UseWebSockets = true; // RelayをWSSで確立するため、Transport側もWebSocketを有効化（必須）
-            nm.NetworkConfig = new NetworkConfig { NetworkTransport = utp };
+            // このゲームは単一シーン＋コード生成UIで、ネットワーク越しのシーン読み込みをしない。
+            // Netcodeの統合シーン管理を有効のままにすると、接続時のシーン同期イベントで
+            // 空パスを解決しようとして NetworkSceneManager が例外(Substring)を投げるため無効化する。
+            nm.NetworkConfig = new NetworkConfig { NetworkTransport = utp, EnableSceneManagement = false };
             nm.OnClientConnectedCallback += OnClientConnected;
             nm.OnClientDisconnectCallback += OnClientDisconnected;
             nm.OnTransportFailure += OnTransportFailure;
