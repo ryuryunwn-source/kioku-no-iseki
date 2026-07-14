@@ -234,7 +234,7 @@ namespace KiokuNoIseki.Online
             var scaler = cgo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280, 720);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.matchWidthOrHeight = 1f; // 高さ基準：解像度/縦横比が違っても縦のレイアウトを一定に保つ
             scaler.dynamicPixelsPerUnit = 4f;
             cgo.AddComponent<GraphicRaycaster>();
             root = cgo.transform;
@@ -520,7 +520,7 @@ namespace KiokuNoIseki.Online
 
             // 自分情報（下）
             MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   殿堂 {v.me.memoryCount}   殿堂勝利 {v.me.pactCount}/{GameEngine.PactWinCount}",
-                -250, -210, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
+                -250, -158, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             DrawHand(v.me.hand, v.me.gauge, myTurn);
             DrawControls(v, myTurn);
@@ -609,7 +609,7 @@ namespace KiokuNoIseki.Online
             for (int i = 0; i < hand.Length; i++)
             {
                 var cv = hand[i];
-                var btn = MakeCardButton(cv, startX + i * 130f, -300);
+                var btn = MakeCardButton(cv, startX + i * 130f, -278);
                 if (btn == null) continue;
                 if (!myTurn) continue;
 
@@ -644,9 +644,9 @@ namespace KiokuNoIseki.Online
 
         void DrawControls(GameView v, bool myTurn)
         {
-            if (!myTurn) { MakeText(root, "相手の番です…", 430, -300, 260, 36, 20, TextAnchor.MiddleRight, Color.gray); return; }
+            if (!myTurn) { MakeText(root, "相手の番です…", 430, -278, 260, 36, 20, TextAnchor.MiddleRight, Color.gray); return; }
 
-            var end = MakeButton("ターン終了", 470, -300, 150, 44, new Color(0.5f, 0.3f, 0.3f));
+            var end = MakeButton("ターン終了", 470, -278, 150, 44, new Color(0.5f, 0.3f, 0.3f));
             end.onClick.AddListener(() => Submit(NetActionType.EndTurn, 0));
 
             if (pmode == PMode.Inscribe)
