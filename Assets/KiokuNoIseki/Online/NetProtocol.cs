@@ -80,6 +80,7 @@ namespace KiokuNoIseki.Online
         public int memoryCount;
         public int pactCount;   // 完全刻印(刻印3)が殿堂に何体か（殿堂進捗・公開情報）
         public int rubble;
+        public bool inscribed;  // このターンすでに生贄した（生贄は1ターン1回）
         public CardView[] hand = Array.Empty<CardView>();
         public CardView[] board = Array.Empty<CardView>();
         public CardView[] cornerstones = Array.Empty<CardView>();

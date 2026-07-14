@@ -266,6 +266,7 @@ namespace KiokuNoIseki.Online
                 memoryCount = p.memoryZone.Count,
                 pactCount = p.memoryZone.Count(c => c.engravingCount >= GameEngine.PactEngraving),
                 rubble = p.rubbleTokens,
+                inscribed = p.inscribedThisTurn,
                 hand = p.hand.Select(c => CV(c, faceDown: !ownHand)).ToArray(),
                 board = p.board.Select(c => CV(c, false)).ToArray(),
                 cornerstones = p.cornerstones.Select(c => CV(c, false)).ToArray()

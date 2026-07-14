@@ -700,9 +700,19 @@ namespace KiokuNoIseki.Online
             }
             else
             {
-                var ins = MakeButton("生贄", 0, 0, 150, 44, new Color(0.35f, 0.5f, 0.35f));
-                PinBottomRight((RectTransform)ins.transform, RX, 74);
-                ins.onClick.AddListener(() => { pmode = PMode.Inscribe; selectedIid = 0; RedrawPlay(); });
+                // 生贄は1ターン1回。すでに済ませていたら押せる風のボタンではなく理由を表示。
+                if (!v.me.inscribed)
+                {
+                    var ins = MakeButton("生贄", 0, 0, 150, 44, new Color(0.35f, 0.5f, 0.35f));
+                    PinBottomRight((RectTransform)ins.transform, RX, 74);
+                    ins.onClick.AddListener(() => { pmode = PMode.Inscribe; selectedIid = 0; RedrawPlay(); });
+                }
+                else
+                {
+                    var insDone = MakeButton("生贄済み（このターン）", 0, 0, 200, 44, new Color(0.28f, 0.28f, 0.30f));
+                    insDone.interactable = false; // グレーアウト＝このターンはもう生贄できない
+                    PinBottomRight((RectTransform)insDone.transform, RX, 74);
+                }
 
                 if (selectedIid != 0)
                 {
