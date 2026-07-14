@@ -709,12 +709,29 @@ namespace KiokuNoIseki.Online
                     var tech = MakeButton("技を発動", 0, 0, 150, 44, new Color(0.4f, 0.4f, 0.6f));
                     PinBottomRight((RectTransform)tech.transform, RX, 126);
                     tech.onClick.AddListener(() => Submit(NetActionType.Technique, selectedIid));
-                    var atk = MakeButton("攻撃", 0, 0, 150, 44, new Color(0.6f, 0.4f, 0.4f));
-                    PinBottomRight((RectTransform)atk.transform, RX, 178);
-                    atk.onClick.AddListener(() => {
-                        if (v.foe.board.Length == 0) Submit(NetActionType.Attack, selectedIid, 0);
-                        else { pmode = PMode.AttackTarget; RedrawPlay(); }
-                    });
+
+                    // 攻撃できるのは「召喚酔いでない・攻撃力>0」のときだけ。
+                    // 攻撃不可なら、無言のボタンではなく理由を表示（押しても何も起きない誤解を防ぐ）。
+                    var sel = FindCard(v, selectedIid);
+                    bool canAtk = sel != null && !sel.sick && sel.atk > 0;
+                    if (canAtk)
+                    {
+                        var atk = MakeButton("攻撃", 0, 0, 150, 44, new Color(0.6f, 0.4f, 0.4f));
+                        PinBottomRight((RectTransform)atk.transform, RX, 178);
+                        atk.onClick.AddListener(() => {
+                            if (v.foe.board.Length == 0) Submit(NetActionType.Attack, selectedIid, 0);
+                            else { pmode = PMode.AttackTarget; RedrawPlay(); }
+                        });
+                    }
+                    else
+                    {
+                        string why = sel == null ? "攻撃不可"
+                                   : sel.sick ? "召喚酔いで攻撃不可"
+                                   : "攻撃力0で攻撃不可";
+                        var lbl = MakeButton(why, 0, 0, 190, 44, new Color(0.28f, 0.28f, 0.30f));
+                        lbl.interactable = false; // グレーアウトして押せないことを明示
+                        PinBottomRight((RectTransform)lbl.transform, RX, 178);
+                    }
                 }
             }
         }
@@ -979,11 +996,13 @@ namespace KiokuNoIseki.Online
             p.raycastTarget = false; // 説明表示のみ。最前面に出すため、クリックを吸って敵選択を妨げないよう無効化（重要）
             onlineDetail = p.gameObject;
             var rt = p.rectTransform;
-            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(0, 175); rt.sizeDelta = new Vector2(680, 150);
+            // カード（盤面中央）やログ（右）に重ならないよう、画面左端の縦帯へ固定する。
+            // 左端アンカーなので画面の縦横比が変わっても左に張り付いたまま。
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 0.5f);
+            rt.anchoredPosition = new Vector2(14, 30); rt.sizeDelta = new Vector2(300, 250);
             Color edge = d.kind == CardKind.Guardian ? ElemColor[d.element] : new Color(0.6f, 0.6f, 0.65f);
             Outline(p.gameObject, edge);
-            var t = MakeText(p.transform, BuildDesc(cv), 0, 0, 660, 140, 17, TextAnchor.UpperLeft, new Color(0.95f, 0.95f, 0.95f));
+            var t = MakeText(p.transform, BuildDesc(cv), 0, 0, 660, 140, 14, TextAnchor.UpperLeft, new Color(0.95f, 0.95f, 0.95f));
             t.lineSpacing = 1.25f;
             t.rectTransform.anchorMin = Vector2.zero; t.rectTransform.anchorMax = Vector2.one;
             t.rectTransform.offsetMin = new Vector2(12, 12); t.rectTransform.offsetMax = new Vector2(-12, -12);
