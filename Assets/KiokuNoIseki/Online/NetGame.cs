@@ -284,7 +284,9 @@ namespace KiokuNoIseki.Online
                 atk = c.CurrentAttack,
                 def = c.RemainingDefense,
                 engraving = c.engravingCount,
-                sick = c.summoningSick
+                sick = c.summoningSick,
+                acted = c.attackedThisTurn,
+                techDone = c.techniqueUsedThisTurn
             };
         }
 

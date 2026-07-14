@@ -67,6 +67,8 @@ namespace KiokuNoIseki.Online
         public int def;        // 現在防御力（残り）
         public int engraving;  // 刻印数
         public bool sick;      // 召喚酔い
+        public bool acted;     // このターンすでに攻撃した（攻撃は1体1回）
+        public bool techDone;  // このターンすでに技を使った（技は1体1回）
         public bool faceDown;  // 裏向き（相手の手札）
     }
 

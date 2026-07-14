@@ -719,14 +719,31 @@ namespace KiokuNoIseki.Online
 
                 if (selectedIid != 0)
                 {
-                    var tech = MakeButton("技を発動", 0, 0, 150, 44, new Color(0.4f, 0.4f, 0.6f));
-                    PinBottomRight((RectTransform)tech.transform, RX, 126);
-                    tech.onClick.AddListener(() => Submit(NetActionType.Technique, selectedIid));
-
-                    // 攻撃できるのは「召喚酔いでない・攻撃力>0」のときだけ。
-                    // 攻撃不可なら、無言のボタンではなく理由を表示（押しても何も起きない誤解を防ぐ）。
                     var sel = FindCard(v, selectedIid);
-                    bool canAtk = sel != null && !sel.sick && sel.atk > 0;
+                    var selDef = sel != null ? Def(sel.cardId) : null;
+                    int techCost = selDef != null ? selDef.incantationCost : 0;
+
+                    // 技（カードスキル）：1体1回＆詠唱コスト分のゲージが必要。
+                    // 使用済み or ゲージ不足なら、押せる風のボタンではなく理由をグレー表示する。
+                    bool canTech = sel != null && !sel.techDone && v.me.gauge >= techCost;
+                    if (canTech)
+                    {
+                        var tech = MakeButton("技を発動", 0, 0, 150, 44, new Color(0.4f, 0.4f, 0.6f));
+                        PinBottomRight((RectTransform)tech.transform, RX, 126);
+                        tech.onClick.AddListener(() => Submit(NetActionType.Technique, selectedIid));
+                    }
+                    else
+                    {
+                        string tw = sel == null ? "技不可"
+                                  : sel.techDone ? "技は使用済み"
+                                  : $"ゲージ不足（詠唱{techCost}）";
+                        var tb = MakeButton(tw, 0, 0, 200, 44, new Color(0.28f, 0.28f, 0.30f));
+                        tb.interactable = false; // グレーアウト＝今は技を使えない
+                        PinBottomRight((RectTransform)tb.transform, RX, 126);
+                    }
+
+                    // 攻撃：召喚酔い/攻撃力0/攻撃済み のいずれかなら不可。理由をグレー表示する。
+                    bool canAtk = sel != null && !sel.sick && sel.atk > 0 && !sel.acted;
                     if (canAtk)
                     {
                         var atk = MakeButton("攻撃", 0, 0, 150, 44, new Color(0.6f, 0.4f, 0.4f));
@@ -740,8 +757,9 @@ namespace KiokuNoIseki.Online
                     {
                         string why = sel == null ? "攻撃不可"
                                    : sel.sick ? "召喚酔いで攻撃不可"
+                                   : sel.acted ? "攻撃済み（このターン）"
                                    : "攻撃力0で攻撃不可";
-                        var lbl = MakeButton(why, 0, 0, 190, 44, new Color(0.28f, 0.28f, 0.30f));
+                        var lbl = MakeButton(why, 0, 0, 200, 44, new Color(0.28f, 0.28f, 0.30f));
                         lbl.interactable = false; // グレーアウトして押せないことを明示
                         PinBottomRight((RectTransform)lbl.transform, RX, 178);
                     }
