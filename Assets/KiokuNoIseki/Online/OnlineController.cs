@@ -725,8 +725,8 @@ namespace KiokuNoIseki.Online
             // 行動に応じた効果音（該当ファイルが無ければ無音）
             switch (t)
             {
-                case NetActionType.Attack:    AudioManager.Sfx("sfx_attack"); break;
-                case NetActionType.Technique: AudioManager.Sfx("sfx_technique"); break;
+                case NetActionType.Attack:    AudioManager.SfxRandom("Hit"); break;
+                case NetActionType.Technique: AudioManager.SfxRandom("Hit"); break;
                 case NetActionType.Inscribe:  AudioManager.Sfx("sfx_inscribe"); break;
             }
             pmode = PMode.Normal; selectedIid = 0; selectedTargetIid = 0; pendingSpellIid = 0;

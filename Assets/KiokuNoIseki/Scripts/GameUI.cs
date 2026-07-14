@@ -578,7 +578,7 @@ namespace KiokuNoIseki
                     var tBtn = MakeButton(root, $"技:{g.definition.techniqueName}", new Vector2(bx, 84),
                         new Vector2(200, 40), new Color(0.4f,0.4f,0.6f), fromBottom:true, anchorRight:true);
                     tBtn.onClick.AddListener(() => {
-                        if (TechniqueActivator.TryActivate(engine, g, out var reason)) { AudioManager.Sfx("sfx_technique"); AfterHumanAction(); }
+                        if (TechniqueActivator.TryActivate(engine, g, out var reason)) { AudioManager.SfxRandom("Hit"); AfterHumanAction(); }
                         else { AddLog($"技不可: {reason}"); Redraw(); }
                     });
                 }
@@ -652,7 +652,7 @@ namespace KiokuNoIseki
 
         void OnAttackFx(CardInstance attacker, CardInstance target)
         {
-            AudioManager.Sfx("sfx_attack"); // 効果音（Resources/Audio/sfx_attack が無ければ無音）
+            AudioManager.SfxRandom("Hit"); // 攻撃効果音（Resources/Audio/Hit/ からランダム）
             if (root == null) return;
             // 本体への直接攻撃=赤、モンスター同士の戦闘=黄白
             Color c = target == null ? new Color(1f, 0.25f, 0.15f) : new Color(1f, 0.92f, 0.55f);

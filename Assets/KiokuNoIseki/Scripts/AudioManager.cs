@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace KiokuNoIseki
 {
@@ -79,6 +80,21 @@ namespace KiokuNoIseki
             sfx.PlayOneShot(clip, Mathf.Clamp01(volume)); // sfx.volume（ユーザー音量）×これ
         }
 
+        // Resources/Audio/{folder}/ 内の全効果音からランダムに1つ鳴らす（フォルダに足すだけで候補が増える）。
+        readonly Dictionary<string, AudioClip[]> sfxPools = new Dictionary<string, AudioClip[]>();
+        public void PlayRandomSfx(string folder, float volume = 1f)
+        {
+            if (sfx == null || string.IsNullOrEmpty(folder)) return;
+            if (!sfxPools.TryGetValue(folder, out var clips))
+            {
+                clips = Resources.LoadAll<AudioClip>("Audio/" + folder);
+                sfxPools[folder] = clips;
+            }
+            if (clips == null || clips.Length == 0) return;
+            var clip = clips[Random.Range(0, clips.Length)];
+            sfx.PlayOneShot(clip, Mathf.Clamp01(volume));
+        }
+
         public void SetBgmVolume(float v) { bgmUserVol = Mathf.Clamp01(v); ApplyBgm(); }
         public void SetSfxVolume(float v) { sfxUserVol = Mathf.Clamp01(v); if (sfx != null) sfx.volume = sfxUserVol; }
         public float BgmVolume => bgmUserVol;   // 設定画面にはユーザー音量（係数をかける前）を見せる
@@ -90,5 +106,6 @@ namespace KiokuNoIseki
         public static void Title() { Instance?.PlayBgm("bgm_title", 1f); }
         public static void Battle() { Instance?.PlayBgm("bgm_battle", 0.4f); } // 戦闘BGMは係数0.4（さらに小さく）
         public static void Sfx(string name, float v = 1f) { Instance?.PlaySfx(name, v); }
+        public static void SfxRandom(string folder, float v = 1f) { Instance?.PlayRandomSfx(folder, v); }
     }
 }
