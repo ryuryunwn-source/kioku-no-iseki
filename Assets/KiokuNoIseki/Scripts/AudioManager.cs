@@ -61,6 +61,10 @@ namespace KiokuNoIseki
 
         public void SetBgmVolume(float v) { if (bgm != null) bgm.volume = Mathf.Clamp01(v); }
         public void SetSfxVolume(float v) { if (sfx != null) sfx.volume = Mathf.Clamp01(v); }
+        public float BgmVolume => bgm != null ? bgm.volume : 0.5f;
+        public float SfxVolume => sfx != null ? sfx.volume : 0.8f;
+        public bool BgmMuted { get; private set; }
+        public void ToggleBgmMute() { BgmMuted = !BgmMuted; if (bgm != null) bgm.mute = BgmMuted; }
 
         // ── 便利ショートカット（Instanceが無くても安全）──
         public static void Title() { Instance?.PlayBgm("bgm_title"); }

@@ -80,6 +80,8 @@ namespace KiokuNoIseki.Online
 
             // タイトル画面の「オンラインで対戦」ボタンからここが呼ばれる
             GameUI.LaunchOnline = () => s_instance.ShowMenu();
+            // 設定画面の「タイトルに戻る」：オンライン中なら切断してオンラインUIを閉じる
+            GameUI.LeaveOnlineToTitle = () => { s_instance.Disconnect(); s_instance.Hide(); };
         }
 
         void Awake()

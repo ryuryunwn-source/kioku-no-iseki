@@ -38,6 +38,16 @@ namespace KiokuNoIseki
         // オンライン拡張（別アセンブリ）への接続点。拡張が読み込まれると設定される。
         // null の場合はオンライン機能が未ロード（コンパイル失敗時など）。
         public static System.Action LaunchOnline;
+        public static System.Action LeaveOnlineToTitle; // 設定画面「タイトルに戻る」用：オンライン中なら切断してUIを閉じる（OnlineControllerが設定）
+
+        // 設定画面などからタイトル画面へ戻す。
+        public void ShowTitle()
+        {
+            inTitle = true; awaitingPass = false; showRules = false;
+            selectedAttacker = null; selectedTarget = null; mode = Mode.Normal;
+            HideCardDetail();
+            Redraw();
+        }
 
         // 画面・モード状態
         bool inTitle = true;     // タイトル画面表示中
