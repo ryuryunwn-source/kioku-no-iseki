@@ -24,6 +24,35 @@ namespace KiokuNoIseki
 
         void Awake() { font = LoadJpFont(); }
 
+        void Start() { BuildGear(); }
+
+        // 常時表示の設定ボタン（Escが無いスマホ用。PCでも押せる）。右上に小さく置く。
+        void BuildGear()
+        {
+            var cgo = new GameObject("SettingsGearCanvas");
+            DontDestroyOnLoad(cgo);
+            var gc = cgo.AddComponent<Canvas>();
+            gc.renderMode = RenderMode.ScreenSpaceOverlay;
+            gc.sortingOrder = 450; // 設定パネル(500)より下・ゲームUIより上
+            var scaler = cgo.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1280, 720);
+            scaler.matchWidthOrHeight = 1f;
+            cgo.AddComponent<GraphicRaycaster>();
+
+            var go = new GameObject("Gear"); go.transform.SetParent(cgo.transform, false);
+            var img = go.AddComponent<Image>(); img.color = new Color(0.14f, 0.15f, 0.20f, 0.72f);
+            var btn = go.AddComponent<Button>();
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f); rt.pivot = new Vector2(1f, 1f);
+            rt.anchoredPosition = new Vector2(-8, -8); rt.sizeDelta = new Vector2(70, 40);
+            var lgo = new GameObject("Label"); lgo.transform.SetParent(go.transform, false);
+            var t = lgo.AddComponent<Text>();
+            t.text = "⚙"; t.font = font; t.fontSize = 26; t.alignment = TextAnchor.MiddleCenter; t.color = Color.white; t.raycastTarget = false;
+            var lrt = t.rectTransform; lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+            btn.onClick.AddListener(Open);
+        }
+
         Font LoadJpFont()
         {
             string[] names = { "Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic" };

@@ -1,5 +1,7 @@
 using UnityEngine;
-using UnityEngine.Windows.Speech;
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+using UnityEngine.Windows.Speech;   // 音声認識はWindows専用（Android等では無効）
+#endif
 using UnityEngine.InputSystem;
 using System.Collections;
 using KiokuNoIseki;
@@ -7,7 +9,9 @@ using KiokuNoIseki;
 public class VoiceController : MonoBehaviour
 {
     public GameEngine gameEngine;
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
     private KeywordRecognizer recognizer;
+#endif
     private string requestedCommand = null;
     private readonly object lockObject = new object();
     private bool isProcessing = false;
@@ -35,6 +39,7 @@ public class VoiceController : MonoBehaviour
             if (gameUI != null) gameEngine = gameUI.engine;
         }
 
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
         // Unityがマイクを認識しているか診断（0台ならマイク未接続/権限なし）
         var mics = Microphone.devices;
         if (mics == null || mics.Length == 0)
@@ -68,11 +73,15 @@ public class VoiceController : MonoBehaviour
             // 日本語の音声認識パックが未インストール等でKeywordRecognizerが作れないことがある。
             Debug.LogError("🎤 音声認識の起動に失敗しました。Windowsの『音声認識(日本語)』が有効か確認してください。\n詳細: " + e.Message);
         }
+#else
+        // Windows以外（Android等）では音声認識は使えない。タップ操作で遊べる。
+        Debug.Log("🎤 音声操作はこのプラットフォームでは無効です（PC専用）。カードをタップして操作してください。");
+#endif
     }
 
     void Update()
     {
-        // ── キーボードによる代替入力（音声が不調でも動作確認・発表できる保険）──
+        // ── キーボードによる代替入力（PCで音声が不調でも動作確認・発表できる保険。モバイルでは無効）──
         // V=「いけっ」(攻撃)  B=「くらえ」(本体直接)  N=「ターンエンド」
         var kb = Keyboard.current;
         if (kb != null)
@@ -117,19 +126,21 @@ public class VoiceController : MonoBehaviour
         isProcessing = true;
         Debug.Log($"🎤 声「{command}」を受け付けました。");
         yield return new WaitForSeconds(0.5f);
-        
+
         gameEngine.ProcessVoiceCommand(command);
-        
+
         yield return new WaitForSeconds(1.5f);
         isProcessing = false;
     }
 
     void OnDestroy()
     {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
         if (recognizer != null)
         {
             if (recognizer.IsRunning) recognizer.Stop();
             recognizer.Dispose();
         }
+#endif
     }
 }
