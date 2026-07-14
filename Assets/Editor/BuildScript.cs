@@ -8,9 +8,41 @@ public static class BuildScript
     // ── Android APK（2台での実機テスト用） ──
     // メニュー「Kioku/Build Android APK」からクリック、またはバッチ:
     //   Unity.exe -batchmode -quit -projectPath <proj> -executeMethod BuildScript.BuildAndroid
+    // Unity に同梱された Android SDK/NDK/JDK のパスを External Tools 設定へ明示的に流し込む。
+    // モジュールを後から入れた場合、Editor が「未検出」を記憶したままビルドが失敗することがあるため、
+    // 毎回ビルド前に同梱パスへ上書きして確実に見つけさせる。
+    static void EnsureAndroidToolPaths()
+    {
+        string androidPlayer = System.IO.Path.Combine(
+            EditorApplication.applicationContentsPath, "PlaybackEngines", "AndroidPlayer");
+        string sdk = System.IO.Path.Combine(androidPlayer, "SDK");
+        string ndk = System.IO.Path.Combine(androidPlayer, "NDK");
+        string jdk = System.IO.Path.Combine(androidPlayer, "OpenJDK");
+
+        var t = System.Type.GetType(
+            "UnityEditor.Android.AndroidExternalToolsSettings, UnityEditor.Android.Extensions");
+        if (t == null)
+        {
+            UnityEngine.Debug.LogWarning("[BuildScript] AndroidExternalToolsSettings 型が見つかりません（Android モジュール未導入？）。");
+            return;
+        }
+        void Set(string prop, string val)
+        {
+            if (!System.IO.Directory.Exists(val)) return;
+            var p = t.GetProperty(prop, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (p != null && p.CanWrite) p.SetValue(null, val);
+        }
+        Set("sdkRootPath", sdk);
+        Set("ndkRootPath", ndk);
+        Set("jdkRootPath", jdk);
+        UnityEngine.Debug.Log($"[BuildScript] Androidツールパス設定: SDK={sdk} NDK={ndk} JDK={jdk}");
+    }
+
     [MenuItem("Kioku/Build Android APK")]
     public static void BuildAndroid()
     {
+        EnsureAndroidToolPaths();
+
         string[] scenes = { "Assets/Scenes/SampleScene.unity" };
         string outApk = "Build/Android/KiokuNoIseki.apk";
 
