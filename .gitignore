@@ -47,3 +47,6 @@ Thumbs.db
 # Crash reports
 sysinfo.txt
 *.stackdump
+
+# Android/IL2CPP build intermediates
+/.utmp/
