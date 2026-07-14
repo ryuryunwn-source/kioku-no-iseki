@@ -498,7 +498,7 @@ namespace KiokuNoIseki.Online
 
             // 自分情報（下）
             MakeText(root, $"{v.me.name}   HP {v.me.hp}   ゲージ {v.me.gauge}/{v.me.gaugeMax}   殿堂 {v.me.memoryCount}   殿堂勝利 {v.me.pactCount}/{GameEngine.PactWinCount}",
-                -250, -158, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
+                -250, -140, 800, 30, 20, TextAnchor.MiddleLeft, Color.white);
 
             DrawHand(v.me.hand, v.me.gauge, myTurn);
             DrawControls(v, myTurn);
@@ -587,7 +587,7 @@ namespace KiokuNoIseki.Online
             for (int i = 0; i < hand.Length; i++)
             {
                 var cv = hand[i];
-                var btn = MakeCardButton(cv, startX + i * 130f, -278);
+                var btn = MakeCardButton(cv, startX + i * 130f, -258);
                 if (btn == null) continue;
                 if (!myTurn) continue;
 
