@@ -911,17 +911,8 @@ namespace KiokuNoIseki.Online
 
         void MakeBack(float cx, float cy, float w, float h)
         {
-            var go = new GameObject("Back");
-            go.transform.SetParent(root, false);
-            var img = go.AddComponent<Image>();
-            var frame = GetFrame();
-            if (frame != null) { img.sprite = frame; img.color = new Color(0.5f, 0.45f, 0.55f); }
-            else img.color = new Color(0.16f, 0.14f, 0.18f);
-            var rt = img.rectTransform;
-            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(cx, cy); rt.sizeDelta = new Vector2(w, h);
-            var t = MakeText(go.transform, "記", 0, 0, w, h, Mathf.Max(10, Mathf.RoundToInt(h * 0.42f)), TextAnchor.MiddleCenter, new Color(0.80f, 0.68f, 0.42f));
-            var o = t.gameObject.AddComponent<UnityEngine.UI.Outline>(); o.effectColor = new Color(0, 0, 0, 0.85f); o.effectDistance = new Vector2(1, -1);
+            // オフラインと同じ裏面デザイン（石板＋銅トリム＋同心円＋菱形＋「記」）を共有ビルダーで生成
+            CardBackArt.Build(root, new Vector2(cx, cy), new Vector2(w, h), jpFont);
         }
 
         CardView FindCard(GameView v, int iid)
