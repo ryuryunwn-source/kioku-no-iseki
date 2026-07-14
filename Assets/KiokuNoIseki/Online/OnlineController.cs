@@ -30,6 +30,7 @@ namespace KiokuNoIseki.Online
         // オンライン対戦中の操作状態（自分視点）
         int selectedIid;            // 選択中の自分のモンスター
         int selectedTargetIid;      // 音声「いけ」で攻撃する相手モンスター（クリックで選択）
+        bool resultSfxDone;         // 勝敗の効果音を1回だけ鳴らすためのフラグ
         int pendingSpellIid;        // 対象選択待ちの魔法（手札iid）
         bool pendingTargetsEnemy;
         enum PMode { Normal, AttackTarget, SpellTarget, Inscribe }
@@ -450,6 +451,9 @@ namespace KiokuNoIseki.Online
             }
 
             bool myTurn = v.myTurn && v.result == 0;
+            // 勝敗の効果音（1回だけ）。v.result: 1=自分の勝ち / 2=相手の勝ち
+            if (v.result == 0) resultSfxDone = false;
+            else if (!resultSfxDone) { resultSfxDone = true; AudioManager.Sfx(v.result == 1 ? "sfx_win" : "sfx_lose"); }
 
             // 相手情報（上）
             MakeText(root, $"{v.foe.name}   HP {v.foe.hp}   ゲージ {v.foe.gauge}/{v.foe.gaugeMax}   殿堂 {v.foe.memoryCount}   殿堂勝利 {v.foe.pactCount}/{GameEngine.PactWinCount}",
@@ -718,6 +722,13 @@ namespace KiokuNoIseki.Online
         void Submit(NetActionType t, int a, int b = 0)
         {
             net?.SubmitAction(new NetAction { type = (int)t, a = a, b = b });
+            // 行動に応じた効果音（該当ファイルが無ければ無音）
+            switch (t)
+            {
+                case NetActionType.Attack:    AudioManager.Sfx("sfx_attack"); break;
+                case NetActionType.Technique: AudioManager.Sfx("sfx_technique"); break;
+                case NetActionType.Inscribe:  AudioManager.Sfx("sfx_inscribe"); break;
+            }
             pmode = PMode.Normal; selectedIid = 0; selectedTargetIid = 0; pendingSpellIid = 0;
         }
 

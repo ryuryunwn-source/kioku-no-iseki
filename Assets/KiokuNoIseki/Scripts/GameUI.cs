@@ -28,6 +28,7 @@ namespace KiokuNoIseki
         Mode mode = Mode.Normal;
         CardInstance selectedAttacker;
         CardInstance selectedTarget;        // 音声「いけ」で攻撃する相手モンスター（クリックで選択）
+        bool resultSfxDone;                 // 勝敗の効果音を1回だけ鳴らすためのフラグ
         CardInstance pendingSpell;          // 対象選択待ちの魔法
         bool pendingSpellTargetsEnemy;      // true=相手のモンスターを選ぶ / false=自分のモンスター
         bool showRules;
@@ -221,6 +222,9 @@ namespace KiokuNoIseki
             var me = engine.players[vp];
             var foe = engine.players[1 - vp];
             bool ongoing = engine.result == GameResult.Ongoing;
+            // 勝敗の効果音（1回だけ）。あなた=プレイヤー0視点で勝ち/負けを鳴らす。
+            if (ongoing) resultSfxDone = false;
+            else if (!resultSfxDone) { resultSfxDone = true; AudioManager.Sfx(engine.result == GameResult.Player0Win ? "sfx_win" : "sfx_lose"); }
 
             // 殿堂進捗（完全刻印の体数）。両者に常時公開＝妨害判断の材料にする。
             int myPact = PactCount(me), foePact = PactCount(foe);
@@ -518,7 +522,7 @@ namespace KiokuNoIseki
                 {
                     if (mode == Mode.Inscribe)
                     {
-                        btn.onClick.AddListener(() => { engine.Inscribe(card); mode = Mode.Normal; AfterHumanAction(); });
+                        btn.onClick.AddListener(() => { AudioManager.Sfx("sfx_inscribe"); engine.Inscribe(card); mode = Mode.Normal; AfterHumanAction(); });
                         Outline(btn.gameObject, Color.green);
                     }
                     else
@@ -574,7 +578,7 @@ namespace KiokuNoIseki
                     var tBtn = MakeButton(root, $"技:{g.definition.techniqueName}", new Vector2(bx, 84),
                         new Vector2(200, 40), new Color(0.4f,0.4f,0.6f), fromBottom:true, anchorRight:true);
                     tBtn.onClick.AddListener(() => {
-                        if (TechniqueActivator.TryActivate(engine, g, out var reason)) { AfterHumanAction(); }
+                        if (TechniqueActivator.TryActivate(engine, g, out var reason)) { AudioManager.Sfx("sfx_technique"); AfterHumanAction(); }
                         else { AddLog($"技不可: {reason}"); Redraw(); }
                     });
                 }
