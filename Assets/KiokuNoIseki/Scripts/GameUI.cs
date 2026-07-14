@@ -689,12 +689,14 @@ namespace KiokuNoIseki
                 engine.OnLog -= AddLog;
                 engine.OnStateChanged -= Redraw;
                 engine.OnVoiceAttackRequest -= OnVoiceAttackCommandReceived;
+                engine.OnVoiceDirectAttackRequest -= OnVoiceDirectAttackCommandReceived;
             }
 
             engine = new GameEngine();
             engine.OnLog += AddLog;
             engine.OnStateChanged += Redraw;
-            engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived; // ★バグ修正：新エンジンにボイス登録！
+            engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived;             // 「いけっ」：敵モンスターへ攻撃実行
+            engine.OnVoiceDirectAttackRequest += OnVoiceDirectAttackCommandReceived; // 「くらえ」：本体へ直接攻撃実行
             engine.OnAttack += OnAttackFx; // 攻撃演出
 
             // マイモンがあればデッキに合流させる（同数の固定モンスターと置き換わる）。
@@ -727,15 +729,30 @@ namespace KiokuNoIseki
             var titlePrefab = GetTitlePrefab();
             if (titlePrefab != null) { DrawTitleFromPrefab(titlePrefab); return; }
 
-            var titleT = MakeChildText(root, "マイモン", 60, TextAnchor.MiddleCenter, Color.white);
-            var trt = titleT.rectTransform;
-            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 0.5f);
-            trt.anchoredPosition = new Vector2(0, 190); trt.sizeDelta = new Vector2(800, 90);
+            var logoSprite = Resources.Load<Sprite>("Title/title_logo");
+            if (logoSprite != null)
+            {
+                // ロゴ画像があれば文字の代わりに画像を表示
+                var logoGo = new GameObject("TitleLogo", typeof(RectTransform), typeof(Image));
+                logoGo.transform.SetParent(root, false);
+                var img = logoGo.GetComponent<Image>();
+                img.sprite = logoSprite; img.preserveAspect = true; img.color = Color.white;
+                var lrt = img.rectTransform;
+                lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
+                lrt.anchoredPosition = new Vector2(0, 175); lrt.sizeDelta = new Vector2(560, 220);
+            }
+            else
+            {
+                var titleT = MakeChildText(root, "マイモン", 60, TextAnchor.MiddleCenter, Color.white);
+                var trt = titleT.rectTransform;
+                trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 0.5f);
+                trt.anchoredPosition = new Vector2(0, 190); trt.sizeDelta = new Vector2(800, 90);
 
-            var subT = MakeChildText(root, "― MyMon ―", 22, TextAnchor.MiddleCenter, new Color(0.7f, 0.7f, 0.75f));
-            var srt = subT.rectTransform;
-            srt.anchorMin = srt.anchorMax = srt.pivot = new Vector2(0.5f, 0.5f);
-            srt.anchoredPosition = new Vector2(0, 138); srt.sizeDelta = new Vector2(800, 40);
+                var subT = MakeChildText(root, "― MyMon ―", 22, TextAnchor.MiddleCenter, new Color(0.7f, 0.7f, 0.75f));
+                var srt = subT.rectTransform;
+                srt.anchorMin = srt.anchorMax = srt.pivot = new Vector2(0.5f, 0.5f);
+                srt.anchoredPosition = new Vector2(0, 138); srt.sizeDelta = new Vector2(800, 40);
+            }
 
             var b1 = MakeCenterButton("AIと対戦", new Vector2(0, 40), new Vector2(340, 60), new Color(0.30f, 0.40f, 0.55f));
             b1.onClick.AddListener(() => StartGame(true));
@@ -758,6 +775,7 @@ namespace KiokuNoIseki
             var tv = Object.Instantiate(prefab, root);
             tv.ApplyFont(jpFont);
             tv.ApplyBackground(Resources.Load<Sprite>("Backgrounds/title_bg"));
+            tv.ApplyLogo(Resources.Load<Sprite>("Title/title_logo")); // ロゴ画像があれば文字の代わりに表示
             if (tv.aiButton != null) tv.aiButton.onClick.AddListener(() => StartGame(true));
             if (tv.localButton != null) tv.localButton.onClick.AddListener(() => StartGame(false));
             if (tv.onlineButton != null) tv.onlineButton.onClick.AddListener(() =>
@@ -1427,6 +1445,7 @@ namespace KiokuNoIseki
             if (engine != null)
             {
                 engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived;
+                engine.OnVoiceDirectAttackRequest += OnVoiceDirectAttackCommandReceived;
             }
         }
 
@@ -1435,21 +1454,45 @@ namespace KiokuNoIseki
             if (engine != null)
             {
                 engine.OnVoiceAttackRequest -= OnVoiceAttackCommandReceived;
+                engine.OnVoiceDirectAttackRequest -= OnVoiceDirectAttackCommandReceived;
             }
         }
 
-        // 🎤 音声で「いけっ」と言われた時に、UI側で実行される攻撃処理
+        // 選択中モンスターが今すぐ攻撃できるか（カード選択は手動、攻撃実行だけ音声で行う）
+        private bool VoiceAttackerReady(out CardInstance g)
+        {
+            g = selectedAttacker;
+            if (engine == null || !MyActiveTurn) return false;
+            if (g == null) { AddLog("⚔️ ボイス：先に攻撃する自分のモンスターを選んでください。"); Redraw(); return false; }
+            if (g.summoningSick || g.attackedThisTurn || g.CurrentAttack <= 0)
+            { AddLog("⚔️ ボイス：そのモンスターは今攻撃できません。"); Redraw(); return false; }
+            return true;
+        }
+
+        // 🎤「いけっ」：選択中モンスターで敵モンスターへ攻撃（守護優先・いなければ本体）。実行まで行う。
         private void OnVoiceAttackCommandReceived()
         {
-            if (selectedAttacker == null)
-            {
-                Debug.Log("❌ [ボイス] 攻撃させたい自分のモンスター（対象）が選ばれていません！");
-                return;
-            }
+            if (!VoiceAttackerReady(out var g)) return;
+            var foe = engine.Opp;
+            CardInstance target = foe.board.FirstOrDefault(c => c.definition.guard && c.RemainingDefense > 0);
+            if (target == null && foe.board.Count > 0) target = foe.board[0];
+            Debug.Log($"⚔️ [ボイス] {g.definition.trueName} → {(target != null ? target.definition.trueName : "本体")} 攻撃実行");
+            engine.Attack(g, target);
+            selectedAttacker = null; mode = Mode.Normal;
+            AfterHumanAction();
+        }
 
-            Debug.Log($"⚔️ [ボイス] {selectedAttacker.definition.trueName} の攻撃準備！対象を選んでください。");
-            mode = Mode.SelectAttackTarget;
-            Redraw(); 
+        // 🎤「くらえ」：選択中モンスターで本体を直接攻撃（守護がいると不可）。実行まで行う。
+        private void OnVoiceDirectAttackCommandReceived()
+        {
+            if (!VoiceAttackerReady(out var g)) return;
+            var foe = engine.Opp;
+            if (foe.board.Any(c => c.definition.guard && c.RemainingDefense > 0))
+            { AddLog("⚔️ ボイス：守護がいるため本体を攻撃できません。"); Redraw(); return; }
+            Debug.Log($"⚔️ [ボイス] {g.definition.trueName} → 本体 直接攻撃実行");
+            engine.Attack(g, null);
+            selectedAttacker = null; mode = Mode.Normal;
+            AfterHumanAction();
         }
         // ───────── 🎤 ここまで音声認識の連動コード ─────────
 

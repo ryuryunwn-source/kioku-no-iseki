@@ -27,6 +27,47 @@ namespace KiokuNoIseki
             background.enabled = true;
         }
 
+        // タイトルをロゴ画像にする。sprite があれば画像を表示し、タイトル/サブ文字は隠す。
+        // プレハブに logo Image が割り当てられていなければ、タイトル文字の位置に自動生成する。
+        public void ApplyLogo(Sprite sprite)
+        {
+            if (sprite == null) return; // 画像が無ければ何もしない＝従来どおり文字表示
+
+            if (logo == null)
+            {
+                Transform parent = titleText != null ? titleText.transform.parent : transform;
+                var go = new GameObject("Logo", typeof(RectTransform), typeof(Image));
+                go.transform.SetParent(parent, false);
+                logo = go.GetComponent<Image>();
+                var rt = logo.rectTransform;
+                if (titleText != null)
+                {
+                    var src = titleText.rectTransform;
+                    rt.anchorMin = src.anchorMin; rt.anchorMax = src.anchorMax; rt.pivot = src.pivot;
+                    rt.anchoredPosition = src.anchoredPosition;
+                    rt.sizeDelta = new Vector2(Mathf.Max(src.sizeDelta.x, 520), Mathf.Max(src.sizeDelta.y, 200));
+                }
+                else
+                {
+                    rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+                    rt.anchoredPosition = new Vector2(0, 190);
+                    rt.sizeDelta = new Vector2(560, 220);
+                }
+            }
+
+            logo.sprite = sprite;
+            logo.color = Color.white;
+            logo.preserveAspect = true; // 画像の縦横比を保つ
+            logo.enabled = true;
+            logo.gameObject.SetActive(true); // プレハブでLogoが非アクティブなので必ず有効化する
+            // ロゴを大きく・少し上に表示する（縦横比は保持されるので枠内に収まる範囲で最大化）
+            var lrt = logo.rectTransform;
+            lrt.sizeDelta = new Vector2(880, 360);
+            lrt.anchoredPosition = new Vector2(lrt.anchoredPosition.x, 200);
+            if (titleText != null) titleText.enabled = false; // ロゴがあれば文字は隠す
+            if (subText != null) subText.enabled = false;
+        }
+
         // 実行時のOS日本語フォントを全テキストに適用する。
         public void ApplyFont(Font font)
         {
