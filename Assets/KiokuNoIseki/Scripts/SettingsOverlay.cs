@@ -76,24 +76,24 @@ namespace KiokuNoIseki
             var dim = Panel(new Color(0.03f, 0.04f, 0.07f, 0.85f), Vector2.zero, Vector2.zero, true);
 
             // パネル
-            Panel(new Color(0.10f, 0.11f, 0.16f, 0.99f), Vector2.zero, new Vector2(540, 480));
+            Panel(new Color(0.10f, 0.11f, 0.16f, 0.99f), Vector2.zero, new Vector2(560, 480));
 
             Text("設定", 0, 200, 400, 44, 30, Color.white, TextAnchor.MiddleCenter);
 
             var am = AudioManager.Instance;
 
-            // BGM音量
-            Text("BGM音量", -170, 120, 220, 34, 20, new Color(0.9f, 0.9f, 0.95f), TextAnchor.MiddleLeft);
-            StepRow(120, () => am != null ? am.BgmVolume : 0.5f, v => am?.SetBgmVolume(v));
+            // BGM音量（スライダー）
+            Text("BGM音量", -185, 120, 150, 34, 20, new Color(0.9f, 0.9f, 0.95f), TextAnchor.MiddleLeft);
+            SliderRow(120, () => am != null ? am.BgmVolume : 0.5f, v => am?.SetBgmVolume(v));
 
-            // 効果音音量
-            Text("効果音音量", -170, 60, 220, 34, 20, new Color(0.9f, 0.9f, 0.95f), TextAnchor.MiddleLeft);
-            StepRow(60, () => am != null ? am.SfxVolume : 0.8f, v => am?.SetSfxVolume(v));
+            // 効果音音量（スライダー）
+            Text("効果音音量", -185, 60, 170, 34, 20, new Color(0.9f, 0.9f, 0.95f), TextAnchor.MiddleLeft);
+            SliderRow(60, () => am != null ? am.SfxVolume : 0.8f, v => am?.SetSfxVolume(v));
 
             // BGM ON/OFF
             bool muted = am != null && am.BgmMuted;
-            Text("BGM", -170, 0, 220, 34, 20, new Color(0.9f, 0.9f, 0.95f), TextAnchor.MiddleLeft);
-            var muteBtn = Button(muted ? "OFF" : "ON", 120, 0, 120, 40,
+            Text("BGM", -185, 0, 150, 34, 20, new Color(0.9f, 0.9f, 0.95f), TextAnchor.MiddleLeft);
+            var muteBtn = Button(muted ? "OFF" : "ON", 150, 0, 120, 40,
                 muted ? new Color(0.5f, 0.33f, 0.33f) : new Color(0.30f, 0.5f, 0.40f));
             muteBtn.onClick.AddListener(() => { am?.ToggleBgmMute(); Redraw(); });
 
@@ -103,15 +103,59 @@ namespace KiokuNoIseki
             Button("デスクトップに戻る（終了）", 0, -186, 320, 46, new Color(0.5f, 0.30f, 0.30f)).onClick.AddListener(QuitToDesktop);
         }
 
-        // −  NN%  ＋ の音量調整行
-        void StepRow(float y, System.Func<float> get, System.Action<float> set)
+        // スライダー ＋ NN% の音量調整行（ドラッグ中は再描画せずライブ更新）
+        void SliderRow(float y, System.Func<float> get, System.Action<float> set)
         {
-            const float step = 0.1f;
-            var minus = Button("−", 40, y, 44, 34, new Color(0.30f, 0.35f, 0.45f));
-            minus.onClick.AddListener(() => { set(Mathf.Clamp01(get() - step)); Redraw(); });
-            Text($"{Mathf.RoundToInt(get() * 100)}%", 120, y, 90, 34, 20, Color.white, TextAnchor.MiddleCenter);
-            var plus = Button("＋", 200, y, 44, 34, new Color(0.30f, 0.35f, 0.45f));
-            plus.onClick.AddListener(() => { set(Mathf.Clamp01(get() + step)); Redraw(); });
+            float val = get();
+            var pct = Text($"{Mathf.RoundToInt(val * 100)}%", 225, y, 70, 34, 20, Color.white, TextAnchor.MiddleCenter);
+            MakeSlider(70, y, 190, 16, val, v =>
+            {
+                set(v);
+                pct.text = $"{Mathf.RoundToInt(v * 100)}%";
+            });
+        }
+
+        // uGUIのSliderをコードで組み立てる。
+        Slider MakeSlider(float cx, float cy, float w, float h, float value, System.Action<float> onChange)
+        {
+            var go = new GameObject("Slider"); go.transform.SetParent(root, false);
+            var rt = go.AddComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(cx, cy); rt.sizeDelta = new Vector2(w, h);
+            var slider = go.AddComponent<Slider>();
+
+            // 背景（溝）
+            var bg = new GameObject("BG"); bg.transform.SetParent(go.transform, false);
+            var bgImg = bg.AddComponent<Image>(); bgImg.color = new Color(0.22f, 0.24f, 0.30f);
+            Fill(bgImg.rectTransform);
+
+            // 塗り（現在値）
+            var fillArea = new GameObject("FillArea"); fillArea.transform.SetParent(go.transform, false);
+            var fart = fillArea.AddComponent<RectTransform>(); Fill(fart);
+            var fill = new GameObject("Fill"); fill.transform.SetParent(fillArea.transform, false);
+            var fillImg = fill.AddComponent<Image>(); fillImg.color = new Color(0.40f, 0.62f, 0.88f);
+            var fillrt = fillImg.rectTransform; Fill(fillrt);
+
+            // つまみ
+            var handleArea = new GameObject("HandleArea"); handleArea.transform.SetParent(go.transform, false);
+            var hart = handleArea.AddComponent<RectTransform>(); Fill(hart);
+            var handle = new GameObject("Handle"); handle.transform.SetParent(handleArea.transform, false);
+            var handleImg = handle.AddComponent<Image>(); handleImg.color = Color.white;
+            var hrt = handleImg.rectTransform; hrt.sizeDelta = new Vector2(h + 6, h + 6);
+
+            slider.fillRect = fillrt;
+            slider.handleRect = hrt;
+            slider.targetGraphic = handleImg;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f; slider.maxValue = 1f; slider.value = Mathf.Clamp01(value);
+            slider.onValueChanged.AddListener(v => onChange(v));
+            return slider;
+        }
+
+        static void Fill(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
         }
 
         void ReturnToTitle()
