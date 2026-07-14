@@ -27,6 +27,7 @@ namespace KiokuNoIseki
         enum Mode { Normal, Inscribe, SelectAttackTarget, SelectSpellTarget }
         Mode mode = Mode.Normal;
         CardInstance selectedAttacker;
+        CardInstance selectedTarget;        // 音声「いけ」で攻撃する相手モンスター（クリックで選択）
         CardInstance pendingSpell;          // 対象選択待ちの魔法
         bool pendingSpellTargetsEnemy;      // true=相手のモンスターを選ぶ / false=自分のモンスター
         bool showRules;
@@ -451,6 +452,12 @@ namespace KiokuNoIseki
                     btn.onClick.AddListener(() => OnSelectOwnGuardian(card));
                     if (selectedAttacker == card) Outline(btn.gameObject, Color.cyan);
                 }
+                else if (mode == Mode.Normal && isOpponent && yourTurn)
+                {
+                    // 相手のモンスター：クリックで攻撃対象として選択（音声「いけ」で確定攻撃）
+                    btn.onClick.AddListener(() => { selectedTarget = (selectedTarget == card) ? null : card; Redraw(); });
+                    if (selectedTarget == card) Outline(btn.gameObject, Color.red);
+                }
                 x += 140;
             }
         }
@@ -534,7 +541,7 @@ namespace KiokuNoIseki
             // ターン終了
             var endBtn = MakeButton(root, "ターン終了", new Vector2(bx, 30), new Vector2(140, 44),
                 new Color(0.5f,0.3f,0.3f), fromBottom:true, anchorRight:true);
-            endBtn.onClick.AddListener(() => { mode = Mode.Normal; selectedAttacker = null; engine.EndTurn(); AdvanceTurn(); });
+            endBtn.onClick.AddListener(() => { mode = Mode.Normal; selectedAttacker = null; selectedTarget = null; engine.EndTurn(); AdvanceTurn(); });
             bx -= 150;
 
             // 生贄
@@ -680,7 +687,7 @@ namespace KiokuNoIseki
         {
             lastWasAI = ai; isLocalPvP = !ai;
             inTitle = false; awaitingPass = false; showRules = false;
-            selectedAttacker = null; mode = Mode.Normal;
+            selectedAttacker = null; selectedTarget = null; mode = Mode.Normal;
             logLines.Clear();
             
             // ★バグ修正：古いイベントを解除（もしあれば）してから新しいエンジンを作る
@@ -710,7 +717,7 @@ namespace KiokuNoIseki
         // 「ターン終了」後の進行：AIなら自動、対人戦なら目隠し画面を挟む
         void AdvanceTurn()
         {
-            selectedAttacker = null; mode = Mode.Normal; HideCardDetail();
+            selectedAttacker = null; selectedTarget = null; mode = Mode.Normal; HideCardDetail();
             if (engine.result != GameResult.Ongoing) { Redraw(); return; }
             if (engine.players[engine.currentPlayer].isAI) { AfterAiMaybe(); return; }
             if (isLocalPvP) { awaitingPass = true; Redraw(); return; }
@@ -1474,11 +1481,15 @@ namespace KiokuNoIseki
         {
             if (!VoiceAttackerReady(out var g)) return;
             var foe = engine.Opp;
-            CardInstance target = foe.board.FirstOrDefault(c => c.definition.guard && c.RemainingDefense > 0);
+            CardInstance target = null;
+            // 1) プレイヤーがクリックで選んだ敵を最優先
+            if (selectedTarget != null && foe.board.Contains(selectedTarget)) target = selectedTarget;
+            // 2) 未選択なら守護優先→先頭（守護がいれば守護しか殴れない）
+            if (target == null) target = foe.board.FirstOrDefault(c => c.definition.guard && c.RemainingDefense > 0);
             if (target == null && foe.board.Count > 0) target = foe.board[0];
             Debug.Log($"⚔️ [ボイス] {g.definition.trueName} → {(target != null ? target.definition.trueName : "本体")} 攻撃実行");
             engine.Attack(g, target);
-            selectedAttacker = null; mode = Mode.Normal;
+            selectedAttacker = null; selectedTarget = null; mode = Mode.Normal;
             AfterHumanAction();
         }
 

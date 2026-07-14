@@ -29,6 +29,7 @@ namespace KiokuNoIseki.Online
         bool inPlay;
         // オンライン対戦中の操作状態（自分視点）
         int selectedIid;            // 選択中の自分のモンスター
+        int selectedTargetIid;      // 音声「いけ」で攻撃する相手モンスター（クリックで選択）
         int pendingSpellIid;        // 対象選択待ちの魔法（手札iid）
         bool pendingTargetsEnemy;
         enum PMode { Normal, AttackTarget, SpellTarget, Inscribe }
@@ -167,7 +168,12 @@ namespace KiokuNoIseki.Online
             int attacker = ResolveVoiceAttacker(v);
             if (attacker == 0) { Debug.Log("🎤 攻撃できるモンスターがいません。"); return; }
             int target = 0; // 既定=本体
-            foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) { target = cv.iid; break; } }
+            // 1) プレイヤーがクリックで選んだ敵を最優先（まだ場にいる場合）
+            if (selectedTargetIid != 0)
+                foreach (var cv in v.foe.board) if (cv.iid == selectedTargetIid) { target = selectedTargetIid; break; }
+            // 2) 未選択なら守護優先→先頭
+            if (target == 0)
+                foreach (var cv in v.foe.board) { var d = Def(cv.cardId); if (d != null && d.guard && cv.def > 0) { target = cv.iid; break; } }
             if (target == 0 && v.foe.board.Length > 0) target = v.foe.board[0].iid;
             Submit(NetActionType.Attack, attacker, target);
             RedrawPlay();
@@ -414,7 +420,7 @@ namespace KiokuNoIseki.Online
             if (net != null && net.LatestView != null) RegisterGen(net.LatestView.genCards);
             inPlay = true;
             StartVoice(); // 対戦画面に入ったら音声認識を起動（Windowsのみ・二重起動ガード）
-            pmode = PMode.Normal; selectedIid = 0; pendingSpellIid = 0;
+            pmode = PMode.Normal; selectedIid = 0; selectedTargetIid = 0; pendingSpellIid = 0;
             RedrawPlay();
         }
 
@@ -578,6 +584,13 @@ namespace KiokuNoIseki.Online
                     btn.onClick.AddListener(() => { selectedIid = sid; RedrawPlay(); });
                     if (selectedIid == cv.iid) Outline(btn.gameObject, Color.cyan);
                 }
+                else if (isEnemy && myTurn && pmode == PMode.Normal)
+                {
+                    // 相手モンスター：クリックで攻撃対象に選択（音声「いけ」で確定攻撃）
+                    int tid = cv.iid;
+                    btn.onClick.AddListener(() => { selectedTargetIid = (selectedTargetIid == tid) ? 0 : tid; RedrawPlay(); });
+                    if (selectedTargetIid == cv.iid) Outline(btn.gameObject, Color.red);
+                }
             }
         }
 
@@ -701,7 +714,7 @@ namespace KiokuNoIseki.Online
         void Submit(NetActionType t, int a, int b = 0)
         {
             net?.SubmitAction(new NetAction { type = (int)t, a = a, b = b });
-            pmode = PMode.Normal; selectedIid = 0; pendingSpellIid = 0;
+            pmode = PMode.Normal; selectedIid = 0; selectedTargetIid = 0; pendingSpellIid = 0;
         }
 
         static bool IsEnemyTargetSpell(EffectId e) =>
