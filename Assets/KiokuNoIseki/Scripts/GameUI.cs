@@ -638,6 +638,7 @@ namespace KiokuNoIseki
 
         void OnAttackFx(CardInstance attacker, CardInstance target)
         {
+            AudioManager.Sfx("sfx_attack"); // 効果音（Resources/Audio/sfx_attack が無ければ無音）
             if (root == null) return;
             // 本体への直接攻撃=赤、モンスター同士の戦闘=黄白
             Color c = target == null ? new Color(1f, 0.25f, 0.15f) : new Color(1f, 0.92f, 0.55f);
@@ -709,6 +710,7 @@ namespace KiokuNoIseki
             // マイモンがあればデッキに合流させる（同数の固定モンスターと置き換わる）。
             engine.injectedWriteshi = WriteshiCollection.Count > 0 ? WriteshiCollection.Snapshot() : null;
             engine.NewGame(player1IsAI: ai);
+            AudioManager.Battle(); // 戦闘BGMに切り替え
             AddLog(ai ? "=== 対戦開始：あなた vs AI ==="
                       : "=== ローカル対人戦 開始：プレイヤー1 vs プレイヤー2 ===");
             Redraw();
@@ -733,6 +735,7 @@ namespace KiokuNoIseki
 
         void DrawTitle()
         {
+            AudioManager.Title(); // タイトルBGM（同じ曲なら鳴らし直さない）
             var titlePrefab = GetTitlePrefab();
             if (titlePrefab != null) { DrawTitleFromPrefab(titlePrefab); return; }
 

@@ -198,6 +198,7 @@ namespace KiokuNoIseki.Online
         {
             if (canvas == null) BuildCanvas();
             canvas.gameObject.SetActive(true);
+            AudioManager.Title(); // オンラインメニューはタイトルBGM
             showRules = false;
             status = "ホストになって相手にコードを伝えるか、コードを入力して参加してください。";
             Redraw();
@@ -429,6 +430,7 @@ namespace KiokuNoIseki.Online
         {
             if (canvas == null) BuildCanvas();
             canvas.gameObject.SetActive(true);
+            AudioManager.Battle(); // オンライン対戦は戦闘BGM（同じ曲なら鳴らし直さない）
             for (int i = root.childCount - 1; i >= 0; i--) Destroy(root.GetChild(i).gameObject);
 
             var bg = MakePanel(new Color(0.10f, 0.10f, 0.13f, 1f));
