@@ -44,7 +44,7 @@ public static class BuildScript
         EnsureAndroidToolPaths();
 
         string[] scenes = { "Assets/Scenes/SampleScene.unity" };
-        string outApk = "Build/Android/KiokuNoIseki.apk";
+        string outApk = "Build/Android/MyMon.apk";
 
         // テスト配布用：カスタムキーストア未設定なら Unity のデバッグキーで署名される（サイドロード可）。
         // 必要な Android モジュール（SDK/NDK/JDK）が Unity にインストール済みであること。
@@ -84,7 +84,7 @@ public static class BuildScript
     public static void BuildWindows()
     {
         string[] scenes = { "Assets/Scenes/SampleScene.unity" };
-        string outExe = "Build/Windows/KiokuNoIseki.exe";
+        string outExe = "Build/Windows/MyMon.exe";
 
         // PC1台で2窓オンライン対戦テストができるようにする設定：
         //  ・ウィンドウ表示（2つ並べて見られる）
