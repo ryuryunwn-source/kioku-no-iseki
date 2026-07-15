@@ -713,6 +713,7 @@ namespace KiokuNoIseki
                 engine.OnStateChanged -= Redraw;
                 engine.OnVoiceAttackRequest -= OnVoiceAttackCommandReceived;
                 engine.OnVoiceDirectAttackRequest -= OnVoiceDirectAttackCommandReceived;
+                engine.OnVoiceEndTurnRequest -= OnVoiceEndTurnCommandReceived;
             }
 
             engine = new GameEngine();
@@ -720,6 +721,7 @@ namespace KiokuNoIseki
             engine.OnStateChanged += Redraw;
             engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived;             // 「いけっ」：敵モンスターへ攻撃実行
             engine.OnVoiceDirectAttackRequest += OnVoiceDirectAttackCommandReceived; // 「くらえ」：本体へ直接攻撃実行
+            engine.OnVoiceEndTurnRequest += OnVoiceEndTurnCommandReceived;           // 「ターンエンド」：ボタンと同じくAI手番まで進める
             engine.OnAttack += OnAttackFx; // 攻撃演出
 
             // マイモンがあればデッキに合流させる（同数の固定モンスターと置き換わる）。
@@ -1471,6 +1473,7 @@ namespace KiokuNoIseki
             {
                 engine.OnVoiceAttackRequest += OnVoiceAttackCommandReceived;
                 engine.OnVoiceDirectAttackRequest += OnVoiceDirectAttackCommandReceived;
+                engine.OnVoiceEndTurnRequest += OnVoiceEndTurnCommandReceived;
             }
         }
 
@@ -1480,7 +1483,18 @@ namespace KiokuNoIseki
             {
                 engine.OnVoiceAttackRequest -= OnVoiceAttackCommandReceived;
                 engine.OnVoiceDirectAttackRequest -= OnVoiceDirectAttackCommandReceived;
+                engine.OnVoiceEndTurnRequest -= OnVoiceEndTurnCommandReceived;
             }
+        }
+
+        // 🎤「ターンエンド」：ボタン押下と全く同じ経路（EndTurn→AdvanceTurn）を通す。
+        // これでAIの手番処理（AfterAiMaybe）まで走り、AIが止まらない。
+        private void OnVoiceEndTurnCommandReceived()
+        {
+            if (engine == null || !MyActiveTurn) return;
+            mode = Mode.Normal; selectedAttacker = null; selectedTarget = null;
+            engine.EndTurn();
+            AdvanceTurn();
         }
 
         // 選択中モンスターが今すぐ攻撃できるか（カード選択は手動、攻撃実行だけ音声で行う）

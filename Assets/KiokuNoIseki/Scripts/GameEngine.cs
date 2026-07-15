@@ -426,6 +426,9 @@ namespace KiokuNoIseki
         // UI側に「いけっ、って言われたから攻撃して！」と伝えるための電波（イベント）
         public System.Action OnVoiceAttackRequest;
 	public System.Action OnVoiceDirectAttackRequest;
+        // 「ターンエンド」もUIに委ねる。UI側で EndTurn→AdvanceTurn（AI起動）まで行う必要があるため、
+        // ここで直接 EndTurn() すると AIの手番処理が走らず止まる（ボタンとの挙動差の原因だった）。
+        public System.Action OnVoiceEndTurnRequest;
 
 
         public void ProcessVoiceCommand(string recognizedWord)
@@ -435,8 +438,9 @@ namespace KiokuNoIseki
 
             if (recognizedWord == "ターンエンド")
             {
-                Debug.Log("🤖 ボイス：ターンエンドを直接実行します！");
-                EndTurn(); // インスペクターを使わず、メソッドを直接呼び出す
+                Debug.Log("🤖 ボイス：ターンエンドの合図をUIに送ります！");
+                // UIに委ねる（UI側で EndTurn→AdvanceTurn を実行し、AIの手番まで進める）。
+                OnVoiceEndTurnRequest?.Invoke();
             }
             else if (recognizedWord == "いけ" || recognizedWord == "いけっ")
             {
